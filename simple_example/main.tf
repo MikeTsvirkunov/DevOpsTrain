@@ -18,13 +18,14 @@ terraform {
 
 data "twc_configurator" "configurator" {
   location = "ru-1"
-  disk_type = "nvme"
+  preset_type = "default"
 }
 
 data "twc_os" "os" {
   name = "ubuntu"
   version = "22.04"
 }
+
 resource "twc_server" "example-server" {
   name = "Example server"
   os_id = data.twc_os.os.id
