@@ -16,7 +16,7 @@ terraform {
 # }
 
 # Добавляем проект MMM
-data "twc_projects" "МММ" {
+data "twc_projects" "mmm_project" {
   name = "МММ"
 }
 
@@ -32,7 +32,7 @@ data "twc_os" "os" {
 
 resource "twc_server" "example-server" {
   name = "Example server"
-  project_id = data.twc_projects.MMM.id
+  project_id = data.twc_projects.mmm_project.id
   os_id = data.twc_os.os.id
 
   configuration {
