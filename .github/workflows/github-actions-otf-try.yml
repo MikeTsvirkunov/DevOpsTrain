@@ -1,12 +1,17 @@
 name: CI
 
-on: [push]
+on:
+  push:
+    branches:
+      - test/trying_configurate_ci-cd_for_opentofu_with_simple_example
 
 jobs:
   phpunit:
     runs-on: ubuntu-latest
     steps:
     - uses: opentofu/setup-opentofu@v2
+      with:
+        ref: ${{ github.ref }}
     - name: Checking
       run: ls -a
     - name: Tofu initiation
