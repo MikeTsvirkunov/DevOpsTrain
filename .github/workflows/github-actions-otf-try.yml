@@ -21,7 +21,7 @@ jobs:
         export TWC_TOKEN=${{ secrets.TWC_TOKEN }}
         tofu init
         tofu plan -no-color
-        tofu apply
+        tofu apply -auto-approve
         echo ${{ steps.plan.outputs.stdout }}
         echo ${{ steps.plan.outputs.stderr }}
         echo ${{ steps.plan.outputs.exitcode }}
