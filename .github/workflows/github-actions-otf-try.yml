@@ -19,7 +19,7 @@ jobs:
       working-directory: ./simple_example
       run: |
         export TWC_TOKEN=${{ secrets.TWC_TOKEN }}
-        tofu init
+        tofu init -upgrade
         tofu plan -no-color
         tofu apply -auto-approve
         echo ${{ steps.plan.outputs.stdout }}
