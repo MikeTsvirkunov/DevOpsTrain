@@ -15,6 +15,10 @@ terraform {
 #   sensitive = true  # Не выведится в логи
 # }
 
+# Добавляем проект MMM
+data "twc_projects" "МММ" {
+  name = "МММ"
+}
 
 data "twc_configurator" "configurator" {
   location = "ru-1"
@@ -28,6 +32,7 @@ data "twc_os" "os" {
 
 resource "twc_server" "example-server" {
   name = "Example server"
+  project_id = data.twc_projects.articles.id
   os_id = data.twc_os.os.id
 
   configuration {
