@@ -18,7 +18,7 @@ terraform {
 
 data "twc_configurator" "configurator" {
   location = "ru-1"
-  disk_type = "nvme"
+  preset_type = "nvme"
 }
 
 data "twc_os" "os" {
