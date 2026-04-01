@@ -21,7 +21,7 @@ jobs:
         export TWC_TOKEN=${{ secrets.TWC_TOKEN }}
         tofu init -upgrade
         tofu plan -no-color
-        tofu apply -auto-approve -lock-timeout=10s
+        tofu apply -auto-approve -lock-timeout=120s
         echo ${{ steps.plan.outputs.stdout }}
         echo ${{ steps.plan.outputs.stderr }}
         echo ${{ steps.plan.outputs.exitcode }}
