@@ -32,7 +32,7 @@ data "twc_os" "os" {
 
 resource "twc_server" "example-server" {
   name = "Example server"
-  project_id = data.twc_projects.articles.id
+  project_id = data.twc_projects.MMM.id
   os_id = data.twc_os.os.id
 
   configuration {
