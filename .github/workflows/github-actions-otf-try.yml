@@ -20,6 +20,7 @@ jobs:
       run: |
         export TWC_TOKEN=${{ secrets.TWC_TOKEN }}
         export TF_REGISTRY_CLIENT_TIMEOUT=240
+        export TOFU_LOG=DEBUG
         tofu init -upgrade
         tofu plan -no-color
         tofu apply -auto-approve -lock-timeout=360s
