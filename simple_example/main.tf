@@ -41,4 +41,9 @@ resource "twc_server" "example-server" {
     cpu = 1
     ram = 1024
   }
+  
+  
+  timeouts {
+    create = "5m"
+  }
 }
