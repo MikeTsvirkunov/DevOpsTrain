@@ -17,9 +17,9 @@ terraform {
 
 
 # Добавляем проект MMM
-# data "twc_projects" "mmm-project" {
-#   name = "МММ"
-# }
+data "twc_projects" "mmm-project" {
+  name = "МММ"
+}
 
 data "twc_configurator" "configurator" {
   location = "ru-1"
@@ -34,7 +34,7 @@ data "twc_os" "os" {
 resource "twc_server" "example-server" {
   name = "Example server"
   os_id = data.twc_os.os.id
-#   project_id = data.twc_projects.mmm-project.id
+  project_id = data.twc_projects.mmm-project.id
   configuration {
     configurator_id = data.twc_configurator.configurator.id
     disk = 5120 * 4
