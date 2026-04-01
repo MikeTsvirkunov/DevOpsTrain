@@ -18,7 +18,7 @@ terraform {
 
 data "twc_configurator" "configurator" {
   location = "ru-1"
-  preset_type = "default"
+  preset_type = "standard"
 }
 
 data "twc_os" "os" {
