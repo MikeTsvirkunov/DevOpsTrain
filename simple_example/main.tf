@@ -5,7 +5,7 @@ terraform {
       source = "tf.timeweb.cloud/timeweb-cloud/timeweb-cloud"
     }
   }
-  required_version = ">= 0.13"
+  required_version = ">= 1.4.4"
 }
 
 # Указываем переменные
