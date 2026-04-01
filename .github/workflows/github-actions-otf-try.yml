@@ -12,6 +12,8 @@ jobs:
     
     
     - uses: opentofu/setup-opentofu@v2
+    - name: Export token
+      run: export TWC_TOKEN=${{ secrets.TWC_TOKEN }}
     - name: Checking
       run: ls -a
     - name: Tofu initiation
