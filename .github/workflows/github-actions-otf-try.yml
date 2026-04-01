@@ -19,9 +19,10 @@ jobs:
       working-directory: ./simple_example
       run: |
         export TWC_TOKEN=${{ secrets.TWC_TOKEN }}
+        export TF_REGISTRY_CLIENT_TIMEOUT=240
         tofu init -upgrade
         tofu plan -no-color
-        tofu apply -auto-approve -lock-timeout=120s
+        tofu apply -auto-approve
         echo ${{ steps.plan.outputs.stdout }}
         echo ${{ steps.plan.outputs.stderr }}
         echo ${{ steps.plan.outputs.exitcode }}
