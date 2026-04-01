@@ -32,7 +32,7 @@ resource "twc_server" "example-server" {
 
   configuration {
     configurator_id = data.twc_configurator.configurator.id
-    disk = 1024 * 10
+    disk = 5120 * 4
     cpu = 1
     ram = 1024
   }
