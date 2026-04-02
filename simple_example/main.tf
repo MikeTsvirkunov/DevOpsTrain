@@ -33,11 +33,11 @@ data "twc_os" "os" {
 resource "twc_server" "example-server" {
   name = "Example server"
   os_id = data.twc_os.os.id
-  project_id = data.twc_projects.mmm-project.id
   configuration {
     configurator_id = data.twc_configurator.configurator.id
     disk = 5120 * 4
     cpu = 1
     ram = 1024
   }
+  project_id = data.twc_projects.mmm-project.id
 }
