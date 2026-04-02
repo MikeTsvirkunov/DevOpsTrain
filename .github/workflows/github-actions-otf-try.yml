@@ -24,8 +24,3 @@ jobs:
         export TF_LOG=TRACE
         tofu init -upgrade
         tofu plan -no-color
-        tofu apply -auto-approve -lock-timeout=360s
-        echo ${{ steps.plan.outputs.stdout }}
-        echo ${{ steps.plan.outputs.stderr }}
-        echo ${{ steps.plan.outputs.exitcode }}
-        tofu state show
