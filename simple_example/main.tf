@@ -15,7 +15,6 @@ terraform {
 #   sensitive = true  # Не выведится в логи
 # }
 
-
 # Добавляем проект MMM
 data "twc_projects" "mmm-project" {
   name = "МММ"

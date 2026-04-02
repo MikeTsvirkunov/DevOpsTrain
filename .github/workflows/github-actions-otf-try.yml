@@ -19,11 +19,13 @@ jobs:
       working-directory: ./simple_example
       run: |
         export TWC_TOKEN=${{ secrets.TWC_TOKEN }}
-        export TF_REGISTRY_CLIENT_TIMEOUT=240
+        export TF_VAR_image_id='ami-abc123'
         export TOFU_LOG=DEBUG
+        export TF_LOG=TRACE
         tofu init -upgrade
         tofu plan -no-color
         tofu apply -auto-approve -lock-timeout=360s
-        # echo ${{ steps.plan.outputs.stdout }}
-        # echo ${{ steps.plan.outputs.stderr }}
-        # echo ${{ steps.plan.outputs.exitcode }}
+        echo ${{ steps.plan.outputs.stdout }}
+        echo ${{ steps.plan.outputs.stderr }}
+        echo ${{ steps.plan.outputs.exitcode }}
+        tofu state show
