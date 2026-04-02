@@ -16,9 +16,9 @@ terraform {
 # }
 
 # Добавляем проект MMM
-# data "twc_projects" "mmm-project" {
-#   name = "МММ"
-# }
+data "twc_projects" "mmm-project" {
+  name = "МММ"
+}
 
 data "twc_configurator" "configurator" {
   location = "ru-1"
@@ -39,5 +39,5 @@ resource "twc_server" "example-server" {
     cpu = 1
     ram = 1024
   }
-  # project_id = data.twc_projects.mmm-project.id
+  project_id = data.twc_projects.mmm-project.id
 }
