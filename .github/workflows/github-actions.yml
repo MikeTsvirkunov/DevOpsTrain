@@ -27,4 +27,21 @@ jobs:
         tofu -chdir="$OPENTOFU_WORKING_DIR" init -upgrade
         tofu -chdir="$OPENTOFU_WORKING_DIR" plan -no-color
         tofu -chdir="$OPENTOFU_WORKING_DIR" apply -auto-approve -lock-timeout=360s
-        
+        echo "web_ips=$(tofu output -json web_ips)" >> $GITHUB_OUTPUT
+        export MAIN_IP=$(tofu output -json main_server_ip | jq -r '.')
+        export WORKER_IP=$(tofu output -json argocd_node_ip | jq -r '.')
+        echo "main_ip=$MAIN_IP" >> $GITHUB_OUTPUT
+        echo "worker_ip=$WORKER_IP" >> $GITHUB_OUTPUT
+
+  
+  
+  ansible_run:
+    needs: opentofu_run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Получить IP-адреса из вывода OpenTofu
+        id: get_ips
+        run: |
+          echo "main_ip=${{ needs.opentofu_run.outputs.main_ip }}" >> $GITHUB_OUTPUT
+          echo "worker_ip=${{ needs.opentofu_run.outputs.worker_ip }}" >> $GITHUB_OUTPUT
