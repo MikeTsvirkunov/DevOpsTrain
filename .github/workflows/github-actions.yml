@@ -19,7 +19,7 @@ jobs:
       working-directory: ./
       run: |
         export TWC_TOKEN=${{ secrets.MMM_TWC_TOKEN }}
-        export OPENTOFU_WORKING_DIR=${{variables.OPENTOFU_WORKUNG_DIR}}
+        export OPENTOFU_WORKING_DIR=${{vars.OPENTOFU_WORKUNG_DIR}}
         export TF_VAR_image_id='ami-abc123'
         export TOFU_LOG=DEBUG
         export TF_LOG=TRACE
