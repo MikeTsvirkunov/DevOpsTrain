@@ -43,8 +43,8 @@ jobs:
       - name: Getting IPs from OpenTofu
         id: get_ips
         run: |
-          echo "main_ip=${{ needs.opentofu_run.outputs.main_ip }}" >> $GITHUB_OUTPUT
-          echo "worker_ip=${{ needs.opentofu_run.outputs.worker_ip }}" >> $GITHUB_OUTPUT
+          echo "main_ip=${{ needs.opentofu_run.outputs.main_server_ip }}" >> $GITHUB_OUTPUT
+          echo "worker_ip=${{ needs.opentofu_run.outputs.argocd_node_ip }}" >> $GITHUB_OUTPUT
       - name: Install Ansible & Co.
         run: |
           sudo apt update
@@ -66,8 +66,8 @@ jobs:
           echo "  User root" >> ~/.ssh/config
       - name: Init inventory
         env:
-          MAIN_IP: ${{ needs.opentofu_run.outputs.main_ip }}
-          WORKER_IP: ${{ needs.opentofu_run.outputs.worker_ip }}
+          MAIN_IP: ${{ needs.opentofu_run.outputs.main_server_ip }}
+          WORKER_IP: ${{ needs.opentofu_run.outputs.argocd_node_ip }}
         run: |
           python3 scripts/generate_inventory.py \
             --master "$MAIN_IP" \
