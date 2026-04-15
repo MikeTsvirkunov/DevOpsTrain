@@ -45,7 +45,6 @@ jobs:
         run: |
           echo "main_ip=${{ needs.opentofu_run.outputs.main_ip }}" >> $GITHUB_OUTPUT
           echo "worker_ip=${{ needs.opentofu_run.outputs.worker_ip }}" >> $GITHUB_OUTPUT
-          - name: Установить Ansible и зависимости
       - name: Install Ansible & Co.
         run: |
           sudo apt update
