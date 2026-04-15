@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 tofu -chdir="$OPENTOFU_WORKING_DIR" init -upgrade
 tofu -chdir="$OPENTOFU_WORKING_DIR" plan -no-color
 tofu -chdir="$OPENTOFU_WORKING_DIR" taint twc_server.main-server
