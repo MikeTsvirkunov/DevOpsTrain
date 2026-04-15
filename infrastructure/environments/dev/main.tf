@@ -42,10 +42,17 @@ output "argocd_node_ip" {
   value = twc_server.argocd-node-server.ipv4_address
 }
 
+
 resource "twc_ssh_key" "main-server-ssh-key" {
   name = "main-server-ssh-key"
-  body = file("~/.ssh/your-key.pub")
+  body = file("./infrastructure/global/ssh/main-server-ssh-key.pub")
 }
+
+resource "twc_ssh_key" "argocd-node-server-ssh-key" {
+  name = "argocd-node-server-ssh-key"
+  body = file("./infrastructure/global/ssh/argocd-node-server.pub")
+}
+
 
 resource "twc_server" "main-server" {
   name = "Main server"
@@ -56,8 +63,11 @@ resource "twc_server" "main-server" {
     cpu = 1
     ram = 1024
   }
+  lifecycle {
+    replace_triggered_by = [terraform_data.always_replace.id]
+  }
   project_id = data.twc_projects.mmm-project.id
-  ssh_keys_ids = [twc_ssh_key.example-key.id]
+  ssh_keys_ids = [twc_ssh_key.main-server-ssh-key.id]
 }
 
 resource "twc_server" "argocd-node-server" {
@@ -69,8 +79,9 @@ resource "twc_server" "argocd-node-server" {
     cpu = 1
     ram = 1024
   }
-  project_id = data.twc_projects.mmm-project.id
   lifecycle {
     replace_triggered_by = [terraform_data.always_replace.id]
   }
+  project_id = data.twc_projects.mmm-project.id
+  ssh_keys_ids = [twc_ssh_key.argocd-node-server-ssh-key.id]
 }
