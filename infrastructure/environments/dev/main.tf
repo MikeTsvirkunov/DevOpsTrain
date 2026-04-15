@@ -78,6 +78,16 @@ resource "twc_server" "argocd-node-server" {
   ssh_keys_ids = [twc_ssh_key.argocd-node-server-ssh-key.id]
 }
 
+resource "twc_server_ip" "argocd-node-server-ipv4" {
+  source_server_id = twc_server.argocd-node-server.id
+  type = "ipv4"
+}
+
+resource "twc_server_ip" "main-server-ipv4" {
+  source_server_id = twc_server.main-server.id
+  type = "ipv4"
+}
+
 output "main_server_ip" {
   value = twc_server.main-server.main_ipv4
 }
