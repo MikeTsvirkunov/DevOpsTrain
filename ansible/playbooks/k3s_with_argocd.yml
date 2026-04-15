@@ -1,65 +1,118 @@
 ---
-- name: Install k3s on master node
-  hosts: masters
+- name: Установка k3s на мастер и рабочую ноду
+  hosts: all
   become: yes
-  vars:
-    k3s_version: "v1.28.2+k3s1"
-    argocd_version: "v2.9.3"
+  gather_facts: yes
   tasks:
-    - name: Install k3s via official script
-      shell: |
-        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" sh -
-      args:
-        creates: /usr/local/bin/k3s
-    - name: Wait for node to be ready
-      shell: kubectl get nodes
-      register: kubectl_output
-      until: kubectl_output.rc == 0
-      retries: 10
-      delay: 5
-    - name: Fetch kubeconfig
-      fetch:
-        src: /etc/rancher/k3s/k3s.yaml
-        dest: ./kubeconfig
-        flat: yes
-      when: inventory_hostname == groups['masters'][0]  # берём с первой мастер-ноды
+    - name: Установка мастер-ноды k3s
+      when: "'k3s_master' in group_names"
+      block:
+        - name: Скачать установочный скрипт k3s
+          get_url:
+            url: https://get.k3s.io
+            dest: /tmp/k3s_install.sh
+            mode: '0755'
 
-- name: Install ArgoCD on k3s cluster
-  hosts: localhost
-  connection: local
+        - name: Запустить установку k3s server
+          shell: |
+            /tmp/k3s_install.sh server \
+              --cluster-init \
+              --write-kubeconfig-mode 644
+          args:
+            creates: /usr/local/bin/k3s
+
+        - name: Ожидание появления файла с токеном
+          wait_for:
+            path: /var/lib/rancher/k3s/server/node-token
+            timeout: 60
+
+        - name: Прочитать токен для присоединения воркеров
+          slurp:
+            src: /var/lib/rancher/k3s/server/node-token
+          register: k3s_token
+
+        - name: Сохранить токен в факт
+          set_fact:
+            k3s_master_token: "{{ k3s_token.content | b64decode | trim }}"
+
+        - name: Получить IP-адрес мастер-ноды
+          set_fact:
+            k3s_master_ip: "{{ ansible_default_ipv4.address }}"
+
+    - name: Присоединение рабочей ноды к кластеру
+      when: "'k3s_workers' in group_names"
+      block:
+        - name: Скачать установочный скрипт k3s
+          get_url:
+            url: https://get.k3s.io
+            dest: /tmp/k3s_install.sh
+            mode: '0755'
+
+        - name: Запустить установку k3s agent
+          shell: |
+            /tmp/k3s_install.sh agent \
+              --server https://{{ hostvars[groups['k3s_master'][0]]['k3s_master_ip'] }}:6443 \
+              --token {{ hostvars[groups['k3s_master'][0]]['k3s_master_token'] }}
+          args:
+            creates: /usr/local/bin/k3s
+
+- name: Установка ArgoCD на кластер (с привязкой к рабочей ноде)
+  hosts: k3s_master
+  become: yes
+  gather_facts: yes
   vars:
-    argocd_version: "v2.9.3"
+    worker_hostname: "{{ hostvars[groups['k3s_workers'][0]]['ansible_hostname'] }}"
+    worker_ip: "{{ hostvars[groups['k3s_workers'][0]]['ansible_default_ipv4']['address'] }}"
   tasks:
-    - name: Create namespace for ArgoCD
-      kubernetes.core.k8s:
-        name: argocd
-        api_version: v1
-        kind: Namespace
-        state: present
-        kubeconfig: ./kubeconfig
-    - name: Apply ArgoCD manifests
-      kubernetes.core.k8s:
-        src: "https://raw.githubusercontent.com/argoproj/argo-cd/{{ argocd_version }}/manifests/install.yaml"
-        state: present
-        kubeconfig: ./kubeconfig
-    - name: Wait for ArgoCD server pod
-      kubernetes.core.k8s_info:
-        kind: Pod
-        namespace: argocd
-        label_selectors:
-          - app.kubernetes.io/name = argocd-server
-        kubeconfig: ./kubeconfig
-      register: argocd_pods
-      until: argocd_pods.resources | length > 0 and argocd_pods.resources[0].status.phase == "Running"
-      retries: 20
+    - name: Дождаться готовности рабочей ноды в кластере
+      shell: |
+        kubectl get node {{ worker_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: worker_ready
+      until: worker_ready.stdout == "True"
+      retries: 30
       delay: 10
-    - name: Get ArgoCD admin initial password
-      kubernetes.core.k8s_info:
-        kind: Secret
-        namespace: argocd
-        name: argocd-initial-admin-secret
-        kubeconfig: ./kubeconfig
-      register: argocd_secret
-    - name: Display ArgoCD admin password
+
+    - name: Создать namespace argocd
+      shell: |
+        kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Установить ArgoCD из официального манифеста
+      shell: |
+        kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Дождаться развёртывания argocd-server
+      shell: |
+        kubectl rollout status deployment/argocd-server -n argocd --timeout=300s
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Привязать поды argocd-server к рабочей ноде (nodeSelector)
+      shell: |
+        kubectl patch deployment argocd-server -n argocd --type='json' -p='[{"op": "add", "path": "/spec/template/spec/nodeSelector", "value": {"kubernetes.io/hostname": "{{ worker_hostname }}"}}]'
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      ignore_errors: yes 
+
+    - name: Получить начальный пароль администратора ArgoCD
+      shell: |
+        kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: argocd_password
+
+    - name: Вывести информацию для доступа к ArgoCD
       debug:
-        msg: "ArgoCD admin password: {{ argocd_secret.resources[0].data.password | b64decode }}"
+        msg:
+          - "ArgoCD успешно установлен."
+          - "Для доступа к веб-интерфейсу используйте port-forward:"
+          - "kubectl port-forward svc/argocd-server -n argocd 8080:443"
+          - "URL: https://localhost:8080"
+          - "Логин: admin"
+          - "Пароль: {{ argocd_password.stdout }}"
+          - "Также можно настроить Ingress или NodePort."

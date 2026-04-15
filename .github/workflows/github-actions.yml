@@ -40,8 +40,38 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Получить IP-адреса из вывода OpenTofu
+      - name: Getting IPs from OpenTofu
         id: get_ips
         run: |
           echo "main_ip=${{ needs.opentofu_run.outputs.main_ip }}" >> $GITHUB_OUTPUT
           echo "worker_ip=${{ needs.opentofu_run.outputs.worker_ip }}" >> $GITHUB_OUTPUT
+          - name: Установить Ansible и зависимости
+      - name: Install Ansible & Co.
+        run: |
+          sudo apt update
+          sudo apt install -y ansible python3-pip sshpass
+          pip3 install --upgrade ansible
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY_FOR_ARGOCD_NODE_SERVER: ${{ secrets.SSH_PRIVATE_KEY_FOR_ARGOCD_NODE_SERVER }}
+          SSH_PRIVATE_KEY_FOR_MAIN_SERVER: ${{ secrets.SSH_PRIVATE_KEY_FOR_MAIN_SERVER }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY_FOR_MAIN_SERVER" > ~/.ssh/main-server-ssh-key
+          chmod 600 ~/.ssh/main-server-ssh-key
+          echo "$SSH_PRIVATE_KEY_FOR_ARGOCD_NODE_SERVER" > ~/.ssh/argocd-node-server
+          chmod 600 ~/.ssh/argocd-node-server
+          echo "Host *" > ~/.ssh/config
+          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+          echo "  UserKnownHostsFile=/dev/null" >> ~/.ssh/config
+          echo "  User root" >> ~/.ssh/config
+      - name: Init inventory
+        env:
+          MAIN_IP: ${{ needs.opentofu_run.outputs.main_ip }}
+          WORKER_IP: ${{ needs.opentofu_run.outputs.worker_ip }}
+        run: |
+          python3 scripts/generate_inventory.py \
+            --master "$MAIN_IP" \
+            --worker "$WORKER_IP" \
+            --output inventory.ini
+          cat inventory.ini 
