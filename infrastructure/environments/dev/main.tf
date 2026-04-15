@@ -89,9 +89,9 @@ resource "twc_server_ip" "main-server-ipv4" {
 }
 
 output "main_server_ip" {
-  value = twc_server.main-server.main_ipv4
+  value = twc_server_ip.main-server-ipv4.ip
 }
 
 output "argocd_node_ip" {
-  value = twc_server.argocd-node-server.main_ipv4
+  value = twc_server_ip.argocd-node-server-ipv4.ip
 }
