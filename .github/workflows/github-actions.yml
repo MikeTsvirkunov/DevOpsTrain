@@ -17,6 +17,8 @@ jobs:
       run: ls -a
     - name: Tofu initiation
       working-directory: ./
+      env:
+          TWC_TOKEN: ${{ secrets.MMM_TWC_TOKEN }}
       run: |
         export TWC_TOKEN=${{ secrets.MMM_TWC_TOKEN }}
         export OPENTOFU_WORKING_DIR=${{vars.OPENTOFU_WORKUNG_DIR}}
