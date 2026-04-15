@@ -18,7 +18,7 @@ jobs:
     - name: Tofu initiation
       working-directory: ./
       env:
-        TWC_TOKEN: ${{ secrets.MMM_TWC_TOKEN }}
+        TWC_TOKEN: ${{ secrets.TWC_TOKEN }}
       run: |
         export OPENTOFU_WORKING_DIR=${{vars.OPENTOFU_WORKUNG_DIR}}
         export TF_VAR_image_id='ami-abc123'
@@ -26,5 +26,7 @@ jobs:
         export TF_LOG=TRACE
         tofu -chdir="$OPENTOFU_WORKING_DIR" init -upgrade
         tofu -chdir="$OPENTOFU_WORKING_DIR" plan -no-color
+        tofu -chdir="$OPENTOFU_WORKING_DIR" taint twc_server.main-server
+        tofu -chdir="$OPENTOFU_WORKING_DIR" taint twc_server.main-argocd-node-server
         tofu -chdir="$OPENTOFU_WORKING_DIR" apply -auto-approve -lock-timeout=360s
         
