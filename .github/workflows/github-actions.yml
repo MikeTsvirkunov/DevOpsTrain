@@ -25,5 +25,5 @@ jobs:
         export TF_VAR_image_id='ami-abc123'
         export TOFU_LOG=DEBUG
         export TF_LOG=TRACE
-        . ./infrastructure/scripts/run.sh
+        source ./infrastructure/scripts/run.sh
         
