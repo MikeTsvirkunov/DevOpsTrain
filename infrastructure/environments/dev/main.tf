@@ -34,14 +34,6 @@ data "twc_os" "os" {
   version = "22.04"
 }
 
-output "main_server_ip" {
-  value = twc_server.main-server.ipv4_address
-}
-
-output "argocd_node_ip" {
-  value = twc_server.argocd-node-server.ipv4_address
-}
-
 
 resource "twc_ssh_key" "main-server-ssh-key" {
   name = "main-server-ssh-key"
@@ -84,4 +76,12 @@ resource "twc_server" "argocd-node-server" {
   }
   project_id = data.twc_projects.mmm-project.id
   ssh_keys_ids = [twc_ssh_key.argocd-node-server-ssh-key.id]
+}
+
+output "main_server_ip" {
+  value = twc_server.main-server.main_ipv4
+}
+
+output "argocd_node_ip" {
+  value = twc_server.argocd-node-server.main_ipv4
 }
