@@ -40,6 +40,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Check
+        run: |
+          echo ${{ needs.opentofu_run.outputs.main_server_ip }}
+          echo ${{ needs.opentofu_run.outputs.argocd_node_ip }}
       - name: Getting IPs from OpenTofu
         id: get_ips
         run: |
