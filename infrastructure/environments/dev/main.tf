@@ -20,6 +20,10 @@ data "twc_projects" "mmm-project" {
   name = "МММ"
 }
 
+resource "terraform_data" "always_replace" {
+  input = timestamp()
+}
+
 data "twc_configurator" "configurator" {
   location = "ru-1"
   preset_type = "standard"
@@ -52,4 +56,7 @@ resource "twc_server" "argocd-node-server" {
     ram = 1024
   }
   project_id = data.twc_projects.mmm-project.id
+  lifecycle {
+    replace_triggered_by = [terraform_data.always_replace.id]
+  }
 }
