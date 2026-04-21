@@ -27,8 +27,8 @@ jobs:
         tofu -chdir="$OPENTOFU_WORKING_DIR" init -upgrade
         tofu -chdir="$OPENTOFU_WORKING_DIR" plan -no-color
         tofu -chdir="$OPENTOFU_WORKING_DIR" apply -auto-approve -lock-timeout=360s
-        tofu output
-        tofu state list | grep main-server
+        tofu -chdir="$OPENTOFU_WORKING_DIR" output
+        tofu -chdir="$OPENTOFU_WORKING_DIR" state list | grep main-server
         export MAIN_IP=$(tofu output -json main_server_ip | jq -r '.')
         echo "main_ip=$MAIN_IP" >> $GITHUB_OUTPUT
         export WORKER_IP=$(tofu output -json argocd_node_ip | jq -r '.')
