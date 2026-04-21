@@ -89,7 +89,7 @@ resource "twc_server_ip" "main-server-ipv4" {
 }
 
 output "main_server_ip" {
-  value = join("main_server_ip: ", twc_server_ip.main-server-ipv4.ip)
+  value = "main_server_ip: ${twc_server_ip.main-server-ipv4.ip}"
 }
 
 output "argocd_node_ip" {
