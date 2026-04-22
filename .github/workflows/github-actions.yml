@@ -45,7 +45,7 @@ jobs:
       - name: Check
         run: |
           echo ${{ needs.opentofu_run.outputs.main_server_ip }}
-          echo MAIN_IP
+          echo $MAIN_IP
           echo ${{ needs.opentofu_run.outputs.argocd_node_ip }}
           echo $WORKER_IP
       - name: Getting IPs from OpenTofu
