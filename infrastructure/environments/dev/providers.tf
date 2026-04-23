@@ -7,7 +7,7 @@ terraform {
   required_version = ">= 1.5.3"
   backend "s3" {
     endpoint = "https://s3.twcstorage.ru"
-    key = "devops/train/terraform.tfstate"
+    key = "terraform.tfstate"
     region = "ru-1"
     bucket="66ef2141-998128f1-c885-4840-8754-ed045ec10bb0"
     # dynamodb_table = "terraform-state-lock"

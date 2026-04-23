@@ -1,3 +1,4 @@
 .secrets
 infrastructure/global/ssh/*
 !infrastructure/global/ssh/*.pub
+terraform.tfstate
