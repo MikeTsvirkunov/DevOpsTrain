@@ -1,6 +1,6 @@
 terraform {
   backend "s3" {
-    endpoint = "s3.twcstorage.ru"
+    endpoint = "https://s3.twcstorage.ru"
     key = "devops/train/terraform.tfstate"
     region = "ru-1"
     bucket="66ef2141-998128f1-c885-4840-8754-ed045ec10bb0"
@@ -11,7 +11,6 @@ terraform {
     skip_metadata_api_check = true
     skip_requesting_account_id = true
     skip_s3_checksum = true
-    # use_lockfile = true
+    use_lockfile = true
   }
 }
-
