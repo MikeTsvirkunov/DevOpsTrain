@@ -3,6 +3,7 @@ terraform {
     endpoint = "s3.twcstorage.ru"
     key = "devops/train/terraform.tfstate"
     region = "ru-1"
+    bucket="66ef2141-998128f1-c885-4840-8754-ed045ec10bb0"
     dynamodb_table = "terraform-state-lock"
     encrypt = true
     skip_region_validation = true
