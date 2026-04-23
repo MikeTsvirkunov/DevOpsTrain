@@ -12,7 +12,7 @@ terraform {
     bucket="66ef2141-998128f1-c885-4840-8754-ed045ec10bb0"
     # dynamodb_table = "terraform-state-lock"
     encrypt = true
-    use_lockfile = true
+    # use_lockfile = true
     skip_region_validation = true
     skip_credentials_validation = true
     # skip_metadata_api_check = true
