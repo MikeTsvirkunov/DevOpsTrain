@@ -19,23 +19,30 @@ jobs:
       working-directory: ./
       env:
         TWC_TOKEN: ${{ secrets.TWC_TOKEN }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
       run: |
         export OPENTOFU_WORKING_DIR=${{vars.OPENTOFU_WORKUNG_DIR}}
         export TF_VAR_image_id='ami-abc123'
         export TOFU_LOG=DEBUG
         export TF_LOG=TRACE
-        tofu -chdir="$OPENTOFU_WORKING_DIR" init -upgrade
+    - name: Tofu build
+      working-directory: ./
+      run: |
+        tofu -chdir="$OPENTOFU_WORKING_DIR" init -upgrade -backend-config="backend=$S3_BUCKET_NAME"
         tofu -chdir="$OPENTOFU_WORKING_DIR" plan -no-color
         tofu -chdir="$OPENTOFU_WORKING_DIR" apply -auto-approve -lock-timeout=360s
         tofu -chdir="$OPENTOFU_WORKING_DIR" output
         tofu -chdir="$OPENTOFU_WORKING_DIR" state list | grep main-server
+    - name: Export data
+      working-directory: ./
+      run: |
         export MAIN_IP=$(tofu output -json main_server_ip | jq -r '.')
         echo "main_ip=$MAIN_IP" >> $GITHUB_OUTPUT
         export WORKER_IP=$(tofu output -json argocd_node_ip | jq -r '.')
         echo "worker_ip=$WORKER_IP" >> $GITHUB_OUTPUT
-        
 
-  
   
   ansible_run:
     needs: opentofu_run
