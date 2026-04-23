@@ -24,6 +24,7 @@ jobs:
         OPENTOFU_WORKING_DIR: ${{vars.OPENTOFU_WORKUNG_DIR}}
       working-directory: ./
       run: |
+        tofu version
         export TF_VAR_image_id='ami-abc123'
         export TOFU_LOG=DEBUG
         export TF_LOG=TRACE
