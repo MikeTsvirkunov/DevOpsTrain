@@ -57,8 +57,8 @@ jobs:
       - name: Write SSH private keys
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.MAIN_SERVER_SSH_PRIVATE_KEY }}" > ~/.ssh/main-server.key
-          echo "${{ secrets.WORKER_SERVER_SSH_PRIVATE_KEY }}" > ~/.ssh/argocd-node.key
+          echo "${{ secrets.SSH_PRIVATE_KEY_FOR_MAIN_SERVER }}" > ~/.ssh/main-server.key
+          echo "${{ secrets.SSH_PRIVATE_KEY_FOR_ARGOCD_NODE_SERVER }}" > ~/.ssh/argocd-node.key
           chmod 600 ~/.ssh/*.key
 
       - name: Create Ansible inventory
@@ -75,7 +75,7 @@ jobs:
 
       - name: Run Ansible playbook to install k3s and ArgoCD
         run: |
-          ansible-playbook -i inventory.86 playbooks/k3s-argocd.yml
+          ansible-playbook -i inventory.86 ansible/playbooks/k3s-argocd.yml
   # ansible_run:
   #   needs: opentofu_run
   #   runs-on: ubuntu-latest
