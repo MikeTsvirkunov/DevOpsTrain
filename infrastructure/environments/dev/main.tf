@@ -30,6 +30,14 @@ resource "twc_server" "main-server" {
   #     "sudo /tmp/install-k3s-agent.sh \"${aws_instance.k3s_server.private_ip}\" \"${var.private_key}\""
   #   ]
   # }
+
+
+  provisioner "creating-devuser" {
+    inline = [
+      "adduser devuser",
+      "usermod -aG sudo devuser"
+    ]
+  }
 }
 
 resource "twc_server" "argocd-node-server" {
@@ -58,4 +66,11 @@ resource "twc_server" "argocd-node-server" {
   #     "sudo /tmp/install-k3s-server.sh"
   #   ]
   # }
+
+  provisioner "creating-devuser" {
+    inline = [
+      "adduser devuser",
+      "usermod -aG sudo devuser"
+    ]
+  }
 }
