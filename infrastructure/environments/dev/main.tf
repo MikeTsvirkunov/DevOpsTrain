@@ -42,13 +42,13 @@ resource "twc_server" "argocd-node-server" {
     cpu = 1
     ram = 1024
   }
-  # lifecycle {
-  #   replace_triggered_by = [terraform_data.always_replace.id]
-  # }
   project_id = data.twc_projects.mmm-project.id
   ssh_keys_ids = [twc_ssh_key.argocd-node-server-ssh-key.id]
   is_root_password_required = false
 
+  # lifecycle {
+  #   replace_triggered_by = [terraform_data.always_replace.id]
+  # }
   # provisioner "file" {
   #   source      = "scripts/install-k3s-server.sh"
   #   destination = "/tmp/install-k3s-server.sh"
