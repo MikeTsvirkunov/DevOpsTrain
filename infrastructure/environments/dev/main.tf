@@ -18,6 +18,7 @@ resource "twc_server" "main-server" {
   # }
   project_id = data.twc_projects.mmm-project.id
   ssh_keys_ids = [twc_ssh_key.main-server-ssh-key.id]
+  is_root_password_required = false
   
   # provisioner "file" {
   #   source      = "scripts/install-k3s-agent.sh"
@@ -30,14 +31,6 @@ resource "twc_server" "main-server" {
   #     "sudo /tmp/install-k3s-agent.sh \"${aws_instance.k3s_server.private_ip}\" \"${var.private_key}\""
   #   ]
   # }
-
-
-  provisioner "creating-devuser" {
-    inline = [
-      "adduser devuser",
-      "usermod -aG sudo devuser"
-    ]
-  }
 }
 
 resource "twc_server" "argocd-node-server" {
@@ -54,6 +47,7 @@ resource "twc_server" "argocd-node-server" {
   # }
   project_id = data.twc_projects.mmm-project.id
   ssh_keys_ids = [twc_ssh_key.argocd-node-server-ssh-key.id]
+  is_root_password_required = false
 
   # provisioner "file" {
   #   source      = "scripts/install-k3s-server.sh"
@@ -66,11 +60,4 @@ resource "twc_server" "argocd-node-server" {
   #     "sudo /tmp/install-k3s-server.sh"
   #   ]
   # }
-
-  provisioner "creating-devuser" {
-    inline = [
-      "adduser devuser",
-      "usermod -aG sudo devuser"
-    ]
-  }
 }
