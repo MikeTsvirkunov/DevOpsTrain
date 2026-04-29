@@ -1,118 +1,62 @@
 ---
-- name: Установка k3s на мастер и рабочую ноду
-  hosts: all
+- name: Install k3s on main server (control plane)
+  hosts: main
   become: yes
-  gather_facts: yes
   tasks:
-    - name: Установка мастер-ноды k3s
-      when: "'k3s_master' in group_names"
-      block:
-        - name: Скачать установочный скрипт k3s
-          get_url:
-            url: https://get.k3s.io
-            dest: /tmp/k3s_install.sh
-            mode: '0755'
+    - name: Install k3s server
+      shell: |
+        curl -sfL https://get.k3s.io | sh -s - server --write-kubeconfig-mode 644
+      args:
+        creates: /usr/local/bin/k3s
 
-        - name: Запустить установку k3s server
-          shell: |
-            /tmp/k3s_install.sh server \
-              --cluster-init \
-              --write-kubeconfig-mode 644
-          args:
-            creates: /usr/local/bin/k3s
+    - name: Get node token
+      slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: node_token
 
-        - name: Ожидание появления файла с токеном
-          wait_for:
-            path: /var/lib/rancher/k3s/server/node-token
-            timeout: 60
+    - name: Set token as fact
+      set_fact:
+        k3s_token: "{{ node_token.content | b64decode | trim }}"
+        cacheable: yes
 
-        - name: Прочитать токен для присоединения воркеров
-          slurp:
-            src: /var/lib/rancher/k3s/server/node-token
-          register: k3s_token
-
-        - name: Сохранить токен в факт
-          set_fact:
-            k3s_master_token: "{{ k3s_token.content | b64decode | trim }}"
-
-        - name: Получить IP-адрес мастер-ноды
-          set_fact:
-            k3s_master_ip: "{{ ansible_default_ipv4.address }}"
-
-    - name: Присоединение рабочей ноды к кластеру
-      when: "'k3s_workers' in group_names"
-      block:
-        - name: Скачать установочный скрипт k3s
-          get_url:
-            url: https://get.k3s.io
-            dest: /tmp/k3s_install.sh
-            mode: '0755'
-
-        - name: Запустить установку k3s agent
-          shell: |
-            /tmp/k3s_install.sh agent \
-              --server https://{{ hostvars[groups['k3s_master'][0]]['k3s_master_ip'] }}:6443 \
-              --token {{ hostvars[groups['k3s_master'][0]]['k3s_master_token'] }}
-          args:
-            creates: /usr/local/bin/k3s
-
-- name: Установка ArgoCD на кластер (с привязкой к рабочей ноде)
-  hosts: k3s_master
+- name: Install k3s on worker node and join cluster
+  hosts: worker
   become: yes
-  gather_facts: yes
   vars:
-    worker_hostname: "{{ hostvars[groups['k3s_workers'][0]]['ansible_hostname'] }}"
-    worker_ip: "{{ hostvars[groups['k3s_workers'][0]]['ansible_default_ipv4']['address'] }}"
+    main_ip: "{{ hostvars['main-server']['ansible_host'] }}"
+    k3s_token: "{{ hostvars['main-server']['k3s_token'] }}"
   tasks:
-    - name: Дождаться готовности рабочей ноды в кластере
+    - name: Join k3s worker
       shell: |
-        kubectl get node {{ worker_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-      register: worker_ready
-      until: worker_ready.stdout == "True"
-      retries: 30
-      delay: 10
+        curl -sfL https://get.k3s.io | K3S_URL=https://{{ main_ip }}:6443 K3S_TOKEN={{ k3s_token }} sh -
+      args:
+        creates: /usr/local/bin/k3s
 
-    - name: Создать namespace argocd
-      shell: |
-        kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+- name: Install ArgoCD on the cluster
+  hosts: main
+  become: yes
+  tasks:
+    - name: Create argocd namespace
+      shell: kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 
-    - name: Установить ArgoCD из официального манифеста
+    - name: Install ArgoCD
       shell: |
         kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
-    - name: Дождаться развёртывания argocd-server
+    - name: Wait for ArgoCD server to be ready
       shell: |
-        kubectl rollout status deployment/argocd-server -n argocd --timeout=300s
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+        kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
+      register: result
+      retries: 6
+      delay: 10
+      until: result is success
 
-    - name: Привязать поды argocd-server к рабочей ноде (nodeSelector)
-      shell: |
-        kubectl patch deployment argocd-server -n argocd --type='json' -p='[{"op": "add", "path": "/spec/template/spec/nodeSelector", "value": {"kubernetes.io/hostname": "{{ worker_hostname }}"}}]'
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-      ignore_errors: yes 
-
-    - name: Получить начальный пароль администратора ArgoCD
+    - name: Get initial ArgoCD admin password
       shell: |
         kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
       register: argocd_password
+      changed_when: false
 
-    - name: Вывести информацию для доступа к ArgoCD
+    - name: Display ArgoCD admin password
       debug:
-        msg:
-          - "ArgoCD успешно установлен."
-          - "Для доступа к веб-интерфейсу используйте port-forward:"
-          - "kubectl port-forward svc/argocd-server -n argocd 8080:443"
-          - "URL: https://localhost:8080"
-          - "Логин: admin"
-          - "Пароль: {{ argocd_password.stdout }}"
-          - "Также можно настроить Ingress или NodePort."
+        msg: "ArgoCD admin password: {{ argocd_password.stdout }}"

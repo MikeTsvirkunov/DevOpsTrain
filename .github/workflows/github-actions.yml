@@ -6,6 +6,9 @@ jobs:
   opentofu_run:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      main_ip: ${{ steps.get_ips.outputs.main_ip }}
+      worker_ip: ${{ steps.get_ips.outputs.worker_ip }}
     steps:
     - uses: actions/checkout@v4
       with:
@@ -33,54 +36,88 @@ jobs:
         tofu -chdir="$OPENTOFU_WORKING_DIR" apply -auto-approve -lock-timeout=360s
         tofu -chdir="$OPENTOFU_WORKING_DIR" output
         tofu -chdir="$OPENTOFU_WORKING_DIR" state list | grep main-server
-        export MAIN_IP=$(tofu output -json main_server_ip | jq -r '.')
+        export MAIN_IP=$(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json main_server_ip | jq -r '.')
+        export WORKER_IP=$(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json argocd_node_ip | jq -r '.')
         echo "main_ip=$MAIN_IP" >> $GITHUB_OUTPUT
-        export WORKER_IP=$(tofu output -json argocd_node_ip | jq -r '.')
         echo "worker_ip=$WORKER_IP" >> $GITHUB_OUTPUT
 
-  
-  ansible_run:
-    needs: opentofu_run
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Check
-        run: |
-          echo ${{ needs.opentofu_run.outputs.main_server_ip }}
-          echo $MAIN_IP
-          echo ${{ needs.opentofu_run.outputs.argocd_node_ip }}
-          echo $WORKER_IP
-      - name: Getting IPs from OpenTofu
-        id: get_ips
-        run: |
-          echo "main_ip=${{ needs.opentofu_run.outputs.main_server_ip }}" >> $GITHUB_OUTPUT
-          echo "worker_ip=${{ needs.opentofu_run.outputs.argocd_node_ip }}" >> $GITHUB_OUTPUT
-      - name: Install Ansible & Co.
-        run: |
-          sudo apt update
-          sudo apt install -y ansible python3-pip sshpass
-          pip3 install --upgrade ansible
-      - name: Setup SSH
-        env:
-          SSH_PRIVATE_KEY_FOR_ARGOCD_NODE_SERVER: ${{ secrets.SSH_PRIVATE_KEY_FOR_ARGOCD_NODE_SERVER }}
-          SSH_PRIVATE_KEY_FOR_MAIN_SERVER: ${{ secrets.SSH_PRIVATE_KEY_FOR_MAIN_SERVER }}
-        run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY_FOR_MAIN_SERVER" > ~/.ssh/main-server-ssh-key
-          chmod 600 ~/.ssh/main-server-ssh-key
-          echo "$SSH_PRIVATE_KEY_FOR_ARGOCD_NODE_SERVER" > ~/.ssh/argocd-node-server
-          chmod 600 ~/.ssh/argocd-node-server
-          echo "Host *" > ~/.ssh/config
-          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
-          echo "  UserKnownHostsFile=/dev/null" >> ~/.ssh/config
-          echo "  User root" >> ~/.ssh/config
-      - name: Init inventory
-        env:
-          MAIN_IP: ${{ needs.opentofu_run.outputs.main_server_ip }}
-          WORKER_IP: ${{ needs.opentofu_run.outputs.argocd_node_ip }}
-        run: |
-          python3 scripts/generate_inventory.py \
-            --master "$MAIN_IP" \
-            --worker "$WORKER_IP" \
-            --output inventory.ini
-          cat inventory.ini 
+    ansible_setup:
+      runs-on: ubuntu-latest
+      needs: opentofu_run
+      timeout-minutes: 20
+      steps:
+        - uses: actions/checkout@v4
+
+        - name: Install Ansible and dependencies
+          run: |
+            sudo apt update
+            sudo apt install -y ansible sshpass
+            ansible-galaxy collection install kubernetes.core
+
+        - name: Write SSH private keys
+          run: |
+            mkdir -p ~/.ssh
+            echo "${{ secrets.MAIN_SERVER_SSH_PRIVATE_KEY }}" > ~/.ssh/main-server.key
+            echo "${{ secrets.WORKER_SERVER_SSH_PRIVATE_KEY }}" > ~/.ssh/argocd-node.key
+            chmod 600 ~/.ssh/*.key
+
+        - name: Create Ansible inventory
+          run: |
+            cat > inventory.ini <<EOF
+            [all:vars]
+            ansible_user=root
+            ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+            [main]
+            main-server ansible_host=${{ needs.opentofu_run.outputs.main_ip }} ansible_ssh_private_key_file=~/.ssh/main-server.key
+            [worker]
+            argocd-node ansible_host=${{ needs.opentofu_run.outputs.worker_ip }} ansible_ssh_private_key_file=~/.ssh/argocd-node.key
+            EOF
+
+        - name: Run Ansible playbook to install k3s and ArgoCD
+          run: |
+            ansible-playbook -i inventory.86 playbooks/k3s-argocd.yml
+  # ansible_run:
+  #   needs: opentofu_run
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - name: Check
+  #       run: |
+  #         echo ${{ needs.opentofu_run.outputs.main_server_ip }}
+  #         echo $MAIN_IP
+  #         echo ${{ needs.opentofu_run.outputs.argocd_node_ip }}
+  #         echo $WORKER_IP
+  #     - name: Getting IPs from OpenTofu
+  #       id: get_ips
+  #       run: |
+  #         echo "main_ip=${{ needs.opentofu_run.outputs.main_server_ip }}" >> $GITHUB_OUTPUT
+  #         echo "worker_ip=${{ needs.opentofu_run.outputs.argocd_node_ip }}" >> $GITHUB_OUTPUT
+  #     - name: Install Ansible & Co.
+  #       run: |
+  #         sudo apt update
+  #         sudo apt install -y ansible python3-pip sshpass
+  #         pip3 install --upgrade ansible
+  #     - name: Setup SSH
+  #       env:
+  #         SSH_PRIVATE_KEY_FOR_ARGOCD_NODE_SERVER: ${{ secrets.SSH_PRIVATE_KEY_FOR_ARGOCD_NODE_SERVER }}
+  #         SSH_PRIVATE_KEY_FOR_MAIN_SERVER: ${{ secrets.SSH_PRIVATE_KEY_FOR_MAIN_SERVER }}
+  #       run: |
+  #         mkdir -p ~/.ssh
+  #         echo "$SSH_PRIVATE_KEY_FOR_MAIN_SERVER" > ~/.ssh/main-server-ssh-key
+  #         chmod 600 ~/.ssh/main-server-ssh-key
+  #         echo "$SSH_PRIVATE_KEY_FOR_ARGOCD_NODE_SERVER" > ~/.ssh/argocd-node-server
+  #         chmod 600 ~/.ssh/argocd-node-server
+  #         echo "Host *" > ~/.ssh/config
+  #         echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+  #         echo "  UserKnownHostsFile=/dev/null" >> ~/.ssh/config
+  #         echo "  User root" >> ~/.ssh/config
+  #     - name: Init inventory
+  #       env:
+  #         MAIN_IP: ${{ needs.opentofu_run.outputs.main_server_ip }}
+  #         WORKER_IP: ${{ needs.opentofu_run.outputs.argocd_node_ip }}
+  #       run: |
+  #         python3 scripts/generate_inventory.py \
+  #           --master "$MAIN_IP" \
+  #           --worker "$WORKER_IP" \
+  #           --output inventory.ini
+  #         cat inventory.ini 

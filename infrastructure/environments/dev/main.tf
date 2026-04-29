@@ -18,6 +18,18 @@ resource "twc_server" "main-server" {
   # }
   project_id = data.twc_projects.mmm-project.id
   ssh_keys_ids = [twc_ssh_key.main-server-ssh-key.id]
+  
+  # provisioner "file" {
+  #   source      = "scripts/install-k3s-agent.sh"
+  #   destination = "/tmp/install-k3s-agent.sh"
+  # }
+
+  # provisioner "remote-exec" {
+  #   inline = [
+  #     "chmod +x /tmp/install-k3s-agent.sh",
+  #     "sudo /tmp/install-k3s-agent.sh \"${aws_instance.k3s_server.private_ip}\" \"${var.private_key}\""
+  #   ]
+  # }
 }
 
 resource "twc_server" "argocd-node-server" {
@@ -34,4 +46,16 @@ resource "twc_server" "argocd-node-server" {
   # }
   project_id = data.twc_projects.mmm-project.id
   ssh_keys_ids = [twc_ssh_key.argocd-node-server-ssh-key.id]
+
+  # provisioner "file" {
+  #   source      = "scripts/install-k3s-server.sh"
+  #   destination = "/tmp/install-k3s-server.sh"
+  # }
+
+  # provisioner "remote-exec" {
+  #   inline = [
+  #     "chmod +x /tmp/install-k3s-server.sh",
+  #     "sudo /tmp/install-k3s-server.sh"
+  #   ]
+  # }
 }
