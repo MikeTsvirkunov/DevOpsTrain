@@ -72,6 +72,10 @@ jobs:
           [worker]
           argocd-node ansible_host=${{ needs.opentofu_run.outputs.worker_ip }} ansible_ssh_private_key_file=~/.ssh/argocd-node.key
           EOF
+      - name: Checking
+        run: |
+          echo ${{ needs.opentofu_run.outputs.main_ip }}
+          echo ${{ needs.opentofu_run.outputs.worker_ip }}
 
       - name: Run Ansible playbook to install k3s and ArgoCD
         run: |
