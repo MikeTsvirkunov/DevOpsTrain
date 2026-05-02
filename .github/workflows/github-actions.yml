@@ -48,8 +48,6 @@ jobs:
         echo "worker_ip=$WORKER_IP" >> $GITHUB_OUTPUT
         echo "main_server_root_pw=$MAIN_PW" >> $GITHUB_OUTPUT
         echo "argocd_node_server_root_pw=$WORKER_PW" >> $GITHUB_OUTPUT
-        echo $WORKER_IP
-        
 
   ansible_setup:
     runs-on: ubuntu-latest
@@ -66,6 +64,8 @@ jobs:
       - name: Add server keys to known_hosts
         run: |
           mkdir -p ~/.ssh
+          echop "needs.opentofu_run.outputs.main_ip"
+          echo ${{ needs.opentofu_run.outputs.main_ip }}
           ssh-keyscan ${{ needs.opentofu_run.outputs.main_ip }} >> ~/.ssh/known_hosts
           ssh-keyscan ${{ needs.opentofu_run.outputs.worker_ip }} >> ~/.ssh/known_hosts
 
