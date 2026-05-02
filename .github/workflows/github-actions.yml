@@ -11,9 +11,6 @@ jobs:
       main_server_root_pw: ${{ steps.tofu_init.outputs.main_server_root_pw }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    outputs:
-      main_ip: ${{ steps.get_ips.outputs.main_ip }}
-      worker_ip: ${{ steps.get_ips.outputs.worker_ip }}
     steps:
     - uses: actions/checkout@v4
       with:
