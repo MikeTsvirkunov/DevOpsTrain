@@ -18,7 +18,7 @@ resource "twc_server" "main-server" {
   # }
   project_id = data.twc_projects.mmm-project.id
   ssh_keys_ids = [twc_ssh_key.main-server-ssh-key.id]
-  is_root_password_required = false
+  # is_root_password_required = false
   
   # provisioner "file" {
   #   source      = "scripts/install-k3s-agent.sh"
@@ -44,7 +44,7 @@ resource "twc_server" "argocd-node-server" {
   }
   project_id = data.twc_projects.mmm-project.id
   ssh_keys_ids = [twc_ssh_key.argocd-node-server-ssh-key.id]
-  is_root_password_required = false
+  # is_root_password_required = false
 
   # lifecycle {
   #   replace_triggered_by = [terraform_data.always_replace.id]

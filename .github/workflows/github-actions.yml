@@ -36,12 +36,21 @@ jobs:
         tofu -chdir="$OPENTOFU_WORKING_DIR" apply -auto-approve -lock-timeout=360s
         tofu -chdir="$OPENTOFU_WORKING_DIR" output
         tofu -chdir="$OPENTOFU_WORKING_DIR" state list | grep main-server
+        
         export MAIN_IP=$(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json main_server_ip | jq -r '.')
         echo $(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json main_server_ip | jq -r '.')
         export WORKER_IP=$(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json argocd_node_ip | jq -r '.')
         echo $(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json argocd_node_ip | jq -r '.')
+
+        export MAIN_IP=$(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json main_server_root_pw | jq -r '.')
+        echo $(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json main_server_root_pw | jq -r '.')
+        export WORKER_IP=$(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json argocd_node_server_root_pw | jq -r '.')
+        echo $(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json argocd_node_server_root_pw | jq -r '.')
+
         echo "main_ip=$MAIN_IP" >> $GITHUB_OUTPUT
         echo "worker_ip=$WORKER_IP" >> $GITHUB_OUTPUT
+        echo "main_server_root_pw=$MAIN_PW" >> $GITHUB_OUTPUT
+        echo "argocd_node_server_root_pw=$WORKER_PW" >> $GITHUB_OUTPUT
 
   ansible_setup:
     runs-on: ubuntu-latest
