@@ -19,6 +19,11 @@ jobs:
     - name: Checking
       run: ls -a
     - name: Tofu initiation
+      outputs:
+        main_ip: ${{ needs.opentofu_run.outputs.main_ip }}
+        worker_ip: ${{ needs.opentofu_run.outputs.worker_ip }}
+        argocd_node_server_root_pw: ${{ needs.opentofu_run.outputs.argocd_node_server_root_pw }}
+        main_server_root_pw: ${{ needs.opentofu_run.outputs.main_server_root_pw }}
       env:
         TWC_TOKEN: ${{ secrets.TWC_TOKEN }}
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -48,7 +53,6 @@ jobs:
         echo "worker_ip=$WORKER_IP" >> $GITHUB_OUTPUT
         echo "main_server_root_pw=$MAIN_PW" >> $GITHUB_OUTPUT
         echo "argocd_node_server_root_pw=$WORKER_PW" >> $GITHUB_OUTPUT
-        cat $GITHUB_OUTPUT
 
   ansible_setup:
     runs-on: ubuntu-latest
