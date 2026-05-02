@@ -64,7 +64,7 @@ jobs:
       - name: Add server keys to known_hosts
         run: |
           mkdir -p ~/.ssh
-          echop "needs.opentofu_run.outputs.main_ip"
+          echo "needs.opentofu_run.outputs.main_ip"
           echo ${{ needs.opentofu_run.outputs.main_ip }}
           ssh-keyscan ${{ needs.opentofu_run.outputs.main_ip }} >> ~/.ssh/known_hosts
           ssh-keyscan ${{ needs.opentofu_run.outputs.worker_ip }} >> ~/.ssh/known_hosts
