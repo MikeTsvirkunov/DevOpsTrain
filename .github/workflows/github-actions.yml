@@ -44,15 +44,12 @@ jobs:
         echo $(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json main_server_root_pw | jq -r '.')
         export WORKER_PW=$(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json argocd_node_server_root_pw | jq -r '.')
         echo $(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json argocd_node_server_root_pw | jq -r '.')
-    - name: Echo GH outputs
-      env:
-        OPENTOFU_WORKING_DIR: ${{vars.OPENTOFU_WORKUNG_DIR}}
-      run: |
-        echo $WORKER_IP
         echo "main_ip=$MAIN_IP" >> $GITHUB_OUTPUT
         echo "worker_ip=$WORKER_IP" >> $GITHUB_OUTPUT
         echo "main_server_root_pw=$MAIN_PW" >> $GITHUB_OUTPUT
         echo "argocd_node_server_root_pw=$WORKER_PW" >> $GITHUB_OUTPUT
+        echo $WORKER_IP
+        
 
   ansible_setup:
     runs-on: ubuntu-latest
