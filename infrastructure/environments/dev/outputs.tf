@@ -12,9 +12,11 @@ output "argocd_node_ip" {
 output "main_server_root_pw" {
   value = twc_server.main-server.root_pass
   depends_on  = [twc_server.main-server]
+  sensitive = true
 }
 
 output "argocd_node_server_root_pw" {
   value = twc_server.argocd-node-server.root_pass
   depends_on  = [twc_server.argocd-node-server]
+  sensitive = true
 }
