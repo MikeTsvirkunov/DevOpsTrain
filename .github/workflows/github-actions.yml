@@ -4,10 +4,10 @@ on: [push]
 
 jobs:
   outputs:
-    main_ip: ${{ needs.opentofu_run.outputs.main_ip }}
-    worker_ip: ${{ needs.opentofu_run.outputs.worker_ip }}
-    argocd_node_server_root_pw: ${{ needs.opentofu_run.outputs.argocd_node_server_root_pw }}
-    main_server_root_pw: ${{ needs.opentofu_run.outputs.main_server_root_pw }}
+    main_ip: ${{ steps.tofu_init.outputs.main_ip }}
+    worker_ip: ${{ steps.tofu_init.outputs.worker_ip }}
+    argocd_node_server_root_pw: ${{ steps.tofu_init.outputs.argocd_node_server_root_pw }}
+    main_server_root_pw: ${{ steps.tofu_init.outputs.main_server_root_pw }}
   opentofu_run:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -18,12 +18,11 @@ jobs:
     - uses: actions/checkout@v4
       with:
         ref: ${{ github.ref }}
-    
-    
     - uses: opentofu/setup-opentofu@v2
     - name: Checking
       run: ls -a
     - name: Tofu initiation
+      id: tofu_init
       env:
         TWC_TOKEN: ${{ secrets.TWC_TOKEN }}
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
