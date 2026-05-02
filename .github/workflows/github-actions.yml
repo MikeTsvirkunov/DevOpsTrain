@@ -56,6 +56,7 @@ jobs:
       env:
         OPENTOFU_WORKING_DIR: ${{vars.OPENTOFU_WORKUNG_DIR}}
       run: |
+        echo $WORKER_IP
         echo "main_ip=$MAIN_IP" >> $GITHUB_OUTPUT
         echo "worker_ip=$WORKER_IP" >> $GITHUB_OUTPUT
         echo "main_server_root_pw=$MAIN_PW" >> $GITHUB_OUTPUT
