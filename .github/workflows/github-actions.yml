@@ -73,33 +73,54 @@ jobs:
           sudo apt update
           sudo apt install -y ansible sshpass
           ansible-galaxy collection install kubernetes.core
-
-      - name: Write SSH private keys
+      - name: Add server keys to known_hosts
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY_FOR_MAIN_SERVER }}" > ~/.ssh/main-server.key
-          echo "${{ secrets.SSH_PRIVATE_KEY_FOR_ARGOCD_NODE_SERVER }}" > ~/.ssh/argocd-node.key
-          chmod 600 ~/.ssh/*.key
+          ssh-keyscan ${{ needs.opentofu_run.outputs.main_ip }} >> ~/.ssh/known_hosts
+          ssh-keyscan ${{ needs.opentofu_run.outputs.worker_ip }} >> ~/.ssh/known_hosts
 
       - name: Create Ansible inventory
         run: |
-          cat > inventory.ini <<EOF
-          [all:vars]
-          ansible_user=root
-          ansible_ssh_common_args='-o StrictHostKeyChecking=no'
-          [main]
-          main-server ansible_host=${{ needs.opentofu_run.outputs.main_ip }} ansible_ssh_private_key_file=~/.ssh/main-server.key
-          [worker]
-          argocd-node ansible_host=${{ needs.opentofu_run.outputs.worker_ip }} ansible_ssh_private_key_file=~/.ssh/argocd-node.key
-          EOF
-      - name: Checking
-        run: |
-          echo ${{ needs.opentofu_run.outputs.main_ip }}
-          echo ${{ needs.opentofu_run.outputs.worker_ip }}
+          cat > inventory.ini << EOF
+          [master]
+          ${{ needs.opentofu_run.outputs.main_ip }} ansible_user=root ansible_password='${{ needs.opentofu_run.outputs.main_server_root_pw }}'
 
-      - name: Run Ansible playbook to install k3s and ArgoCD
-        run: |
-          ansible-playbook -i inventory.ini ansible/playbooks/k3s_with_argocd.yml
+          [worker]
+          ${{ needs.opentofu_run.outputs.worker_ip }} ansible_user=root ansible_password='${{ needs.opentofu_run.outputs.argocd_node_server_root_pw }}'
+
+          [all:vars]
+          ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+          EOF
+
+      - name: Run Ansible playbook
+        run: ansible-playbook -i inventory.ini ansible/playbooks/k3s_with_argocd.yml
+
+      # - name: Write SSH private keys
+      #   run: |
+      #     mkdir -p ~/.ssh
+      #     echo "${{ secrets.SSH_PRIVATE_KEY_FOR_MAIN_SERVER }}" > ~/.ssh/main-server.key
+      #     echo "${{ secrets.SSH_PRIVATE_KEY_FOR_ARGOCD_NODE_SERVER }}" > ~/.ssh/argocd-node.key
+      #     chmod 600 ~/.ssh/*.key
+
+      # - name: Create Ansible inventory
+      #   run: |
+      #     cat > inventory.ini <<EOF
+      #     [all:vars]
+      #     ansible_user=root
+      #     ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+      #     [main]
+      #     main-server ansible_host=${{ needs.opentofu_run.outputs.main_ip }} ansible_ssh_private_key_file=~/.ssh/main-server.key
+      #     [worker]
+      #     argocd-node ansible_host=${{ needs.opentofu_run.outputs.worker_ip }} ansible_ssh_private_key_file=~/.ssh/argocd-node.key
+      #     EOF
+      # - name: Checking
+      #   run: |
+      #     echo ${{ needs.opentofu_run.outputs.main_ip }}
+      #     echo ${{ needs.opentofu_run.outputs.worker_ip }}
+
+      # - name: Run Ansible playbook to install k3s and ArgoCD
+      #   run: |
+      #     ansible-playbook -i inventory.ini ansible/playbooks/k3s_with_argocd.yml
   # ansible_run:
   #   needs: opentofu_run
   #   runs-on: ubuntu-latest

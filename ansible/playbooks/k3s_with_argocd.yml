@@ -1,62 +1,119 @@
 ---
-- name: Install k3s on main server (control plane)
-  hosts: main
-  become: yes
-  tasks:
-    - name: Install k3s server
-      shell: |
-        curl -sfL https://get.k3s.io | sh -s - server --write-kubeconfig-mode 644
-      args:
-        creates: /usr/local/bin/k3s
-
-    - name: Get node token
-      slurp:
-        src: /var/lib/rancher/k3s/server/node-token
-      register: node_token
-
-    - name: Set token as fact
-      set_fact:
-        k3s_token: "{{ node_token.content | b64decode | trim }}"
-        cacheable: yes
-
-- name: Install k3s on worker node and join cluster
-  hosts: worker
-  become: yes
+- name: Deploy k3s cluster and ArgoCD
+  hosts: all
+  gather_facts: yes
   vars:
-    main_ip: "{{ hostvars['main-server']['ansible_host'] }}"
-    k3s_token: "{{ hostvars['main-server']['k3s_token'] }}"
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
   tasks:
-    - name: Join k3s worker
-      shell: |
-        curl -sfL https://get.k3s.io | K3S_URL=https://{{ main_ip }}:6443 K3S_TOKEN={{ k3s_token }} sh -
-      args:
-        creates: /usr/local/bin/k3s
+    - name: Install required system packages
+      ansible.builtin.apt:
+        name:
+          - curl
+          - apt-transport-https
+          - ca-certificates
+          - gnupg
+          - lsb-release
+        state: present
+        update_cache: yes
 
-- name: Install ArgoCD on the cluster
-  hosts: main
-  become: yes
-  tasks:
-    - name: Create argocd namespace
-      shell: kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+    # ---------- Master / Server ----------
+    - block:
+        - name: Check if k3s is already installed on master
+          stat:
+            path: /etc/rancher/k3s/k3s.yaml
+          register: k3s_master_config
 
-    - name: Install ArgoCD
-      shell: |
-        kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+        - name: Install k3s server
+          shell: |
+            curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --node-ip {{ ansible_default_ipv4.address }} --write-kubeconfig-mode 644" sh -
+          when: not k3s_master_config.stat.exists
 
-    - name: Wait for ArgoCD server to be ready
-      shell: |
-        kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
-      register: result
-      retries: 6
-      delay: 10
-      until: result is success
+        - name: Wait for k3s server to be ready
+          wait_for:
+            path: /etc/rancher/k3s/k3s.yaml
+            timeout: 60
+          when: not k3s_master_config.stat.exists
 
-    - name: Get initial ArgoCD admin password
-      shell: |
-        kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
-      register: argocd_password
-      changed_when: false
+        - name: Read node token from master
+          slurp:
+            src: /var/lib/rancher/k3s/server/node-token
+          register: k3s_token_raw
 
-    - name: Display ArgoCD admin password
-      debug:
-        msg: "ArgoCD admin password: {{ argocd_password.stdout }}"
+        - name: Set cluster token as fact for all hosts
+          set_fact:
+            k3s_cluster_token: "{{ k3s_token_raw.content | b64decode | trim }}"
+      when: inventory_hostname in groups['master']
+
+    # ---------- Worker / Agent ----------
+    - block:
+        - name: Check if k3s agent is already joined
+          stat:
+            path: /etc/rancher/k3s/k3s.yaml
+          register: k3s_agent_config
+
+        - name: Install k3s agent and join cluster
+          shell: |
+            curl -sfL https://get.k3s.io | K3S_URL=https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:6443 \
+            K3S_TOKEN={{ hostvars[groups['master'][0]]['k3s_cluster_token'] }} \
+            INSTALL_K3S_EXEC="agent --node-ip {{ ansible_default_ipv4.address }}" sh -
+          when: not k3s_agent_config.stat.exists
+      when: inventory_hostname in groups['worker']
+
+    # ---------- ArgoCD installation (run on master) ----------
+    - block:
+        - name: Wait for worker node to appear in cluster
+          shell: |
+            kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get nodes -o json | jq -r '.items[] | select(.status.addresses[] | select(.type=="InternalIP") | .address == "{{ hostvars[groups['worker'][0]]['ansible_default_ipv4']['address'] }}") | .metadata.name'
+          register: worker_node_name_cmd
+          changed_when: false
+          until: worker_node_name_cmd.stdout != ""
+          retries: 30
+          delay: 10
+
+        - name: Set worker node name fact
+          set_fact:
+            worker_node_name: "{{ worker_node_name_cmd.stdout }}"
+
+        - name: Label worker node for ArgoCD
+          command: >
+            kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml label node {{ worker_node_name }}
+            argocd-role=server --overwrite
+          ignore_errors: yes
+
+        - name: Check if ArgoCD is already installed
+          stat:
+            path: /tmp/argocd_installed.flag
+          register: argocd_flag
+
+        - name: Install ArgoCD
+          block:
+            - name: Create argocd namespace
+              shell: |
+                kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+
+            - name: Apply ArgoCD manifests
+              shell: |
+                kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+            - name: Patch argocd-server deployment with nodeSelector
+              command: >
+                kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml patch deployment argocd-server -n argocd
+                -p '{"spec":{"template":{"spec":{"nodeSelector":{"argocd-role":"server"}}}}}'
+              ignore_errors: yes
+
+            - name: Wait for argocd-server rollout
+              command: >
+                kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml rollout status deployment argocd-server -n argocd --timeout=300s
+              register: rollout
+              until: rollout.rc == 0
+              retries: 30
+              delay: 10
+              ignore_errors: yes
+
+            - name: Mark ArgoCD as installed
+              file:
+                path: /tmp/argocd_installed.flag
+                state: touch
+          when: not argocd_flag.stat.exists
+      when: inventory_hostname in groups['master']
