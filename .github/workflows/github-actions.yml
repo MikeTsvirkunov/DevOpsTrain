@@ -40,10 +40,6 @@ jobs:
         echo $(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json main_server_ip | jq -r '.')
         export WORKER_IP=$(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json argocd_node_ip | jq -r '.')
         echo $(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json argocd_node_ip | jq -r '.')
-    - name: Tofu PW export
-      env:
-        OPENTOFU_WORKING_DIR: ${{vars.OPENTOFU_WORKUNG_DIR}}
-      run: |
         export MAIN_PW=$(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json main_server_root_pw | jq -r '.')
         echo $(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json main_server_root_pw | jq -r '.')
         export WORKER_PW=$(tofu -chdir="${{ vars.OPENTOFU_WORKUNG_DIR }}" output -json argocd_node_server_root_pw | jq -r '.')
