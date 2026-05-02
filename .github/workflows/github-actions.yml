@@ -3,12 +3,12 @@ name: CI
 on: [push]
 
 jobs:
-  outputs:
-    main_ip: ${{ steps.tofu_init.outputs.main_ip }}
-    worker_ip: ${{ steps.tofu_init.outputs.worker_ip }}
-    argocd_node_server_root_pw: ${{ steps.tofu_init.outputs.argocd_node_server_root_pw }}
-    main_server_root_pw: ${{ steps.tofu_init.outputs.main_server_root_pw }}
   opentofu_run:
+    outputs:
+      main_ip: ${{ steps.tofu_init.outputs.main_ip }}
+      worker_ip: ${{ steps.tofu_init.outputs.worker_ip }}
+      argocd_node_server_root_pw: ${{ steps.tofu_init.outputs.argocd_node_server_root_pw }}
+      main_server_root_pw: ${{ steps.tofu_init.outputs.main_server_root_pw }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
