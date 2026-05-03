@@ -1,7 +1,7 @@
 ---
 - name: Deploy k3s cluster and ArgoCD
   hosts: all
-  gather_facts: yes
+  gather_facts: true
   vars:
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
 
@@ -54,7 +54,7 @@
 
         - name: Install k3s agent and join cluster
           shell: |
-            curl -sfL https://get.k3s.io | K3S_URL=https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:6443 \
+            curl -sfL https://get.k3s.io | K3S_URL=https://{{ hostvars[groups['master'][0]]['ansible_default_ipv4']['address'] }}:6443 \
             K3S_TOKEN={{ hostvars[groups['master'][0]]['k3s_cluster_token'] }} \
             INSTALL_K3S_EXEC="agent --node-ip {{ ansible_default_ipv4.address }}" sh -
           when: not k3s_agent_config.stat.exists
@@ -79,7 +79,7 @@
           command: >
             kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml label node {{ worker_node_name }}
             argocd-role=server --overwrite
-          ignore_errors: yes
+          ignore_errors: true
 
         - name: Check if ArgoCD is already installed
           stat:
@@ -100,7 +100,7 @@
               command: >
                 kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml patch deployment argocd-server -n argocd
                 -p '{"spec":{"template":{"spec":{"nodeSelector":{"argocd-role":"server"}}}}}'
-              ignore_errors: yes
+              ignore_errors: true
 
             - name: Wait for argocd-server rollout
               command: >
@@ -109,7 +109,7 @@
               until: rollout.rc == 0
               retries: 30
               delay: 10
-              ignore_errors: yes
+              ignore_errors: true
 
             - name: Mark ArgoCD as installed
               file:
