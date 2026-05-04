@@ -1,0 +1,56 @@
+---
+- name: Install K3s Server Node
+  hosts: k3s_servers
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Install K3s server
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | sh
+      args:
+        creates: /usr/local/bin/k3s
+        executable: /bin/bash
+
+    - name: Wait for K3s server to initialize
+      ansible.builtin.wait_for:
+        path: /etc/rancher/k3s/k3s.yaml
+        state: present
+        timeout: 120
+
+    - name: Extract K3s node token
+      ansible.builtin.command: cat /var/lib/rancher/k3s/server/node-token
+      register: k3s_token_output
+      changed_when: false
+
+    - name: Set token as host fact
+      ansible.builtin.set_fact:
+        k3s_token: "{{ k3s_token_output.stdout }}"
+
+- name: Install K3s Agent Node
+  hosts: k3s_agents
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Install K3s agent
+      ansible.builtin.shell: >
+        curl -sfL https://get.k3s.io |
+        K3S_URL=https://{{ hostvars[groups['k3s_servers'][0]].ansible_host | default(hostvars[groups['k3s_servers'][0]].inventory_hostname) }}:6443
+        K3S_TOKEN={{ hostvars[groups['k3s_servers'][0]].k3s_token }}
+        sh -
+      args:
+        creates: /usr/local/bin/k3s
+        executable: /bin/bash
+
+- name: Verify K3s Cluster
+  hosts: k3s_servers
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Check cluster nodes
+      ansible.builtin.command: k3s kubectl get nodes
+      register: cluster_status
+      changed_when: false
+
+    - name: Display cluster status
+      ansible.builtin.debug:
+        var: cluster_status.stdout_lines

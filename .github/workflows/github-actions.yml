@@ -73,87 +73,20 @@ jobs:
       - name: Create Ansible inventory
         run: |
           cat > inventory.ini << EOF
-          [master]
+          [k3s_servers]
           ${{ needs.opentofu_run.outputs.main_ip }} ansible_user=root ansible_password='${{ needs.opentofu_run.outputs.main_server_root_pw }}'
 
-          [worker]
+          [k3s_agents]
           ${{ needs.opentofu_run.outputs.worker_ip }} ansible_user=root ansible_password='${{ needs.opentofu_run.outputs.argocd_node_server_root_pw }}'
+
+          [k3s_cluster:children]
+          k3s_servers
+          k3s_agents
 
           [all:vars]
           ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+          ansible_become=yes
+          ansible_become_method=sudo
           EOF
-
       - name: Run Ansible playbook
-        run: ansible-playbook -i inventory.ini ansible/playbooks/k3s_with_argocd.yml
-
-      # - name: Write SSH private keys
-      #   run: |
-      #     mkdir -p ~/.ssh
-      #     echo "${{ secrets.SSH_PRIVATE_KEY_FOR_MAIN_SERVER }}" > ~/.ssh/main-server.key
-      #     echo "${{ secrets.SSH_PRIVATE_KEY_FOR_ARGOCD_NODE_SERVER }}" > ~/.ssh/argocd-node.key
-      #     chmod 600 ~/.ssh/*.key
-
-      # - name: Create Ansible inventory
-      #   run: |
-      #     cat > inventory.ini <<EOF
-      #     [all:vars]
-      #     ansible_user=root
-      #     ansible_ssh_common_args='-o StrictHostKeyChecking=no'
-      #     [main]
-      #     main-server ansible_host=${{ needs.opentofu_run.outputs.main_ip }} ansible_ssh_private_key_file=~/.ssh/main-server.key
-      #     [worker]
-      #     argocd-node ansible_host=${{ needs.opentofu_run.outputs.worker_ip }} ansible_ssh_private_key_file=~/.ssh/argocd-node.key
-      #     EOF
-      # - name: Checking
-      #   run: |
-      #     echo ${{ needs.opentofu_run.outputs.main_ip }}
-      #     echo ${{ needs.opentofu_run.outputs.worker_ip }}
-
-      # - name: Run Ansible playbook to install k3s and ArgoCD
-      #   run: |
-      #     ansible-playbook -i inventory.ini ansible/playbooks/k3s_with_argocd.yml
-  # ansible_run:
-  #   needs: opentofu_run
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #     - name: Check
-  #       run: |
-  #         echo ${{ needs.opentofu_run.outputs.main_server_ip }}
-  #         echo $MAIN_IP
-  #         echo ${{ needs.opentofu_run.outputs.argocd_node_ip }}
-  #         echo $WORKER_IP
-  #     - name: Getting IPs from OpenTofu
-  #       id: get_ips
-  #       run: |
-  #         echo "main_ip=${{ needs.opentofu_run.outputs.main_server_ip }}" >> $GITHUB_OUTPUT
-  #         echo "worker_ip=${{ needs.opentofu_run.outputs.argocd_node_ip }}" >> $GITHUB_OUTPUT
-  #     - name: Install Ansible & Co.
-  #       run: |
-  #         sudo apt update
-  #         sudo apt install -y ansible python3-pip sshpass
-  #         pip3 install --upgrade ansible
-  #     - name: Setup SSH
-  #       env:
-  #         SSH_PRIVATE_KEY_FOR_ARGOCD_NODE_SERVER: ${{ secrets.SSH_PRIVATE_KEY_FOR_ARGOCD_NODE_SERVER }}
-  #         SSH_PRIVATE_KEY_FOR_MAIN_SERVER: ${{ secrets.SSH_PRIVATE_KEY_FOR_MAIN_SERVER }}
-  #       run: |
-  #         mkdir -p ~/.ssh
-  #         echo "$SSH_PRIVATE_KEY_FOR_MAIN_SERVER" > ~/.ssh/main-server-ssh-key
-  #         chmod 600 ~/.ssh/main-server-ssh-key
-  #         echo "$SSH_PRIVATE_KEY_FOR_ARGOCD_NODE_SERVER" > ~/.ssh/argocd-node-server
-  #         chmod 600 ~/.ssh/argocd-node-server
-  #         echo "Host *" > ~/.ssh/config
-  #         echo "  StrictHostKeyChecking no" >> ~/.ssh/config
-  #         echo "  UserKnownHostsFile=/dev/null" >> ~/.ssh/config
-  #         echo "  User root" >> ~/.ssh/config
-  #     - name: Init inventory
-  #       env:
-  #         MAIN_IP: ${{ needs.opentofu_run.outputs.main_server_ip }}
-  #         WORKER_IP: ${{ needs.opentofu_run.outputs.argocd_node_ip }}
-  #       run: |
-  #         python3 scripts/generate_inventory.py \
-  #           --master "$MAIN_IP" \
-  #           --worker "$WORKER_IP" \
-  #           --output inventory.ini
-  #         cat inventory.ini 
+        run: ansible-playbook -i inventory.ini ansible/playbooks/k3s_cluster.yml
