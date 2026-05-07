@@ -88,10 +88,10 @@ jobs:
           ansible_become=yes
           ansible_become_method=sudo
           EOF
-      - name: Run install_k3s_on_servers.yml
-        run: ansible-playbook -i inventory.ini ansible/playbooks/install_k3s_on_servers.yml
-      - name: Run join_servers_to_k3s_cluster.yml
-        run: ansible-playbook -i inventory.ini ansible/playbooks/join_servers_to_k3s_cluster.yml
-      - name: Run install_k3s_on_servers.yml
-        run: ansible-playbook -i inventory.ini ansible/playbooks/install_k3s_on_servers.yml
+      - name: Run install_k3s_on_main_server.yml
+        run: ansible-playbook -i inventory.ini ansible/playbooks/install_k3s_on_main_server.yml
+      - name: Run install_k3s_on_argo_cd_server.yml
+        run: ansible-playbook -i inventory.ini ansible/playbooks/install_k3s_on_argo_cd_server.yml
+      - name: Run install_argo_cd_in_k3s.yml
+        run: ansible-playbook -i inventory.ini ansible/playbooks/install_argo_cd_in_k3s.yml
       

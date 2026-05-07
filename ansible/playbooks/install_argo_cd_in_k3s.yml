@@ -1,34 +1,23 @@
-- name: Установка ArgoCD в кластер K3s
-  hosts: k3s_servers[0]
+- name: 3. Установка ArgoCD в кластер
+  hosts: k3s_servers
   become: true
   gather_facts: false
   tasks:
-    - name: Настраиваем kubeconfig для root
-      ansible.builtin.shell: |
-        mkdir -p ~/.kube
-        cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-      args:
-        creates: ~/.kube/config
-
-    - name: Создаём namespace argocd
+    - name: Создание namespace argocd
       ansible.builtin.command: kubectl create namespace argocd
-      register: ns_out
-      changed_when: "'already exists' not in ns_out.stderr"
-      failed_when: ns_out.rc != 0 and 'already exists' not in ns_out.stderr
+      register: ns_result
+      changed_when: "'created' in ns_result.stdout"
+      failed_when: ns_result.rc != 0 and 'AlreadyExists' not in ns_result.stderr
+      run_once: true
 
-    - name: Применяем манифесты ArgoCD
+    - name: Применение официального манифеста ArgoCD
       ansible.builtin.command: kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-      register: argo_out
-      changed_when: "'created' in argo_out.stdout or 'configured' in argo_out.stdout"
+      register: argocd_apply
+      changed_when: "'created' in argocd_apply.stdout or 'configured' in argocd_apply.stdout"
+      run_once: true
 
-    - name: Ожидаем готовности контроллера ArgoCD (до 5 мин)
-      ansible.builtin.command: kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
-      register: wait_out
+    - name: Ожидание готовности ArgoCD Server
+      ansible.builtin.command: >
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
       changed_when: false
-      failed_when: wait_out.rc != 0
-
-    - name: Скачиваем kubeconfig на локальную машину
-      ansible.builtin.fetch:
-        src: /etc/rancher/k3s/k3s.yaml
-        dest: ./k3s.yaml
-        flat: yes
+      run_once: true
