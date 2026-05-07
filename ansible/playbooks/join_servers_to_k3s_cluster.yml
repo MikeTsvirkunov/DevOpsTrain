@@ -1,0 +1,47 @@
+- name: Подключение рабочих нод к кластеру K3s
+  hosts: k3s_agents
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Проверяем наличие бинарника K3s
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_check
+
+    - name: Получаем токен ноды с первого сервера
+      ansible.builtin.slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      delegate_to: "{{ groups['k3s_servers'][0] }}"
+      run_once: true
+      register: k3s_token_raw
+      changed_when: false
+
+    - name: Декодируем и обрезаем токен
+      ansible.builtin.set_fact:
+        k3s_token: "{{ k3s_token_raw.content | b64decode | trim }}"
+      run_once: true
+
+    - name: Определяем IP-адрес сервера
+      ansible.builtin.set_fact:
+        k3s_server_ip: "{{ hostvars[groups['k3s_servers'][0]]['ansible_host'] | default(hostvars[groups['k3s_servers'][0]]['ansible_default_ipv4']['address']) }}"
+      run_once: true
+
+    - name: Устанавливаем K3s Agent (только если отсутствует)
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | \
+        K3S_URL=https://{{ k3s_server_ip }}:6443 \
+        K3S_TOKEN={{ k3s_token }} \
+        sh -
+      args:
+        executable: /bin/bash
+      register: agent_install
+      changed_when: "'k3s' in agent_install.stdout or agent_install.rc == 0"
+      failed_when: agent_install.rc != 0
+      when: not k3s_check.stat.exists
+
+    - name: Запускаем сервис k3s-agent
+      ansible.builtin.systemd:
+        name: k3s-agent
+        enabled: yes
+        state: started
+      when: not k3s_check.stat.exists

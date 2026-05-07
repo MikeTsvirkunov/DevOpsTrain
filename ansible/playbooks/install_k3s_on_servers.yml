@@ -1,0 +1,26 @@
+- name: Установка K3s на серверные ноды
+  hosts: k3s_servers
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Проверяем, установлен ли K3s
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_check
+
+    - name: Устанавливаем K3s (только если отсутствует)
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | sh -
+      args:
+        executable: /bin/bash
+      register: install_result
+      changed_when: "'k3s' in install_result.stdout or install_result.rc == 0"
+      failed_when: install_result.rc != 0
+      when: not k3s_check.stat.exists
+
+    - name: Активируем и запускаем сервис k3s
+      ansible.builtin.systemd:
+        name: k3s
+        enabled: yes
+        state: started
+      when: not k3s_check.stat.exists
