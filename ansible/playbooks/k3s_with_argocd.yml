@@ -66,19 +66,33 @@
   tasks:
     - name: Создание namespace argocd
       ansible.builtin.command: kubectl create namespace argocd
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
       register: ns_result
       changed_when: "'created' in ns_result.stdout"
       failed_when: ns_result.rc != 0 and 'AlreadyExists' not in ns_result.stderr
       run_once: true
 
-    - name: Применение официального манифеста ArgoCD
-      ansible.builtin.command: kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+    - name: Скачивание манифеста ArgoCD на сервер
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+        dest: /tmp/argocd-install.yaml
+        mode: '0644'
+      run_once: true
+
+    - name: Применение манифеста ArgoCD
+      ansible.builtin.command: kubectl apply -n argocd -f /tmp/argocd-install.yaml
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
       register: argocd_apply
       changed_when: "'created' in argocd_apply.stdout or 'configured' in argocd_apply.stdout"
+      timeout: 120
       run_once: true
 
     - name: Ожидание готовности ArgoCD Server
       ansible.builtin.command: >
         kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
       changed_when: false
       run_once: true
