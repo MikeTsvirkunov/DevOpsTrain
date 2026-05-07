@@ -64,6 +64,18 @@
   become: true
   gather_facts: false
   tasks:
+    - name: Ожидание готовности API-сервера k3s
+      ansible.builtin.command: kubectl get nodes
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: k3s_api_ready
+      until: k3s_api_ready.rc == 0
+      retries: 30
+      delay: 10
+      timeout: 15
+      changed_when: false
+      run_once: true
+
     - name: Создание namespace argocd
       ansible.builtin.command: kubectl create namespace argocd
       environment:
