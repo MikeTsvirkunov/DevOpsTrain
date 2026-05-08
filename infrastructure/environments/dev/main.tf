@@ -10,8 +10,8 @@ resource "twc_server" "main-server" {
   configuration {
     configurator_id = data.twc_configurator.configurator.id
     disk = 5120 * 4
-    cpu = 1
-    ram = 1024
+    cpu = 2
+    ram = 1024 * 4
   }
   # lifecycle {
   #   replace_triggered_by = [terraform_data.always_replace.id]
@@ -39,8 +39,8 @@ resource "twc_server" "argocd-node-server" {
   configuration {
     configurator_id = data.twc_configurator.configurator.id
     disk = 5120 * 4
-    cpu = 1
-    ram = 1024
+    cpu = 2
+    ram = 1024 * 4
   }
   project_id = data.twc_projects.mmm-project.id
   ssh_keys_ids = [twc_ssh_key.argocd-node-server-ssh-key.id]
