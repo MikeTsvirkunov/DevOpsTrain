@@ -59,6 +59,7 @@
         state: started
         enabled: yes
 
+
 - name: 3. Установка ArgoCD в кластер
   hosts: k3s_servers
   become: true
@@ -138,7 +139,7 @@
       register: patch_result
       changed_when: "'service/argocd-server patched' in patch_result.stdout"
 
-    - name: Ожидание назначенияEXTERNAL-IP для сервиса ArgoCD
+    - name: Ожидание назначения EXTERNAL-IP для сервиса ArgoCD
       ansible.builtin.command: >
         kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
       environment:
@@ -150,3 +151,36 @@
       changed_when: false
       run_once: true
       ignore_errors: true
+
+    - name: Развертывание демонстрационного приложения - Создайте объект Application, который свяжет Git-репозиторий с кластером
+      ansible.builtin.copy:
+        dest: /tmp/guestbook-app.yaml
+        content: |
+          apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: guestbook
+            namespace: argocd
+          spec:
+            project: default
+            source:
+              repoURL: https://github.com/argoproj/argocd-example-apps.git
+              targetRevision: HEAD
+              path: guestbook
+            destination:
+              server: https://kubernetes.default.svc
+              namespace: default
+            syncPolicy:
+              automated:
+                prune: true
+                selfHeal: true
+        mode: '0644'
+      run_once: true
+
+    - name: Развертывание демонстрационного приложения - Применение манифеста через kubectl
+      ansible.builtin.command: kubectl apply -f /tmp/guestbook-app.yaml
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: apply_result
+      changed_when: "'created' in apply_result.stdout or 'configured' in apply_result.stdout"
+      run_once: true
