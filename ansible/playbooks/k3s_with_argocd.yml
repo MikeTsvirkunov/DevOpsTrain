@@ -150,14 +150,3 @@
       changed_when: false
       run_once: true
       ignore_errors: true
-
-    - name: Показать информацию о доступе к ArgoCD
-      ansible.builtin.debug:
-        msg: |
-          ✅ ArgoCD UI доступен:
-          🔹 Адрес: {{ 'http://' + (lb_ip.stdout | default(groups['k3s_servers'][0])) + ':7998' }}
-          🔹 Логин: admin
-          🔹 Пароль: получите командой:
-             kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
-          ⚠️  Если используется фаервол, убедитесь, что порт 7998 открыт.
-      run_once: true
