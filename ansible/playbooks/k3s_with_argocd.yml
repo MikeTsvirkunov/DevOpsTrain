@@ -92,6 +92,13 @@
         dest: /tmp/argocd-install.yaml
         mode: '0644'
       run_once: true
+    
+    - name: Изменение порта argocd-server на 7998 в манифесте
+      ansible.builtin.replace:
+        path: /tmp/argocd-install.yaml
+        regexp: '(^  - name: http\s+port: )80(\s+targetPort: 8080)'
+        replace: '\17998\2'
+      run_once: true
 
     - name: Применение манифеста ArgoCD
       ansible.builtin.command: kubectl apply -n argocd --server-side --force-conflicts -f /tmp/argocd-install.yaml
@@ -110,47 +117,17 @@
       changed_when: false
       run_once: true
 
-    # >>> НОВЫЕ ЗАДАЧИ: Экспозиция ArgoCD UI на порту 7998 <<<
-    - name: Изменение сервиса ArgoCD на LoadBalancer с портом 7998 (k3s ServiceLB)
-      ansible.builtin.shell: |
-        kubectl patch service argocd-server -n argocd --type merge -p '
-        {
-          "spec": {
-            "type": "LoadBalancer",
-            "ports": [
-              {
-                "name": "http",
-                "port": 7998,
-                "targetPort": 8080,
-                "protocol": "TCP"
-              },
-              {
-                "name": "https",
-                "port": 8443,
-                "targetPort": 8080,
-                "protocol": "TCP"
-              }
-            ]
-          }
-        }'
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-      run_once: true
-      register: patch_result
-      changed_when: "'service/argocd-server patched' in patch_result.stdout"
-
-    - name: Ожидание назначения EXTERNAL-IP для сервиса ArgoCD
+    - name: Переключение сервиса ArgoCD на тип LoadBalancer (для k3s ServiceLB)
       ansible.builtin.command: >
-        kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+        kubectl patch service argocd-server -n argocd
+        --type merge
+        -p '{"spec":{"type":"LoadBalancer"}}'
       environment:
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-      register: lb_ip
-      until: lb_ip.stdout != ""
-      retries: 30
-      delay: 10
-      changed_when: false
       run_once: true
-      ignore_errors: true
+      register: patch_type
+      changed_when: "'service/argocd-server patched' in patch_type.stdout"
+      failed_when: false
 
     - name: Развертывание демонстрационного приложения - Создайте объект Application, который свяжет Git-репозиторий с кластером
       ansible.builtin.copy:
