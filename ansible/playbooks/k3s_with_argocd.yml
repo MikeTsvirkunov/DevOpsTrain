@@ -108,3 +108,56 @@
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
       changed_when: false
       run_once: true
+
+    # >>> НОВЫЕ ЗАДАЧИ: Экспозиция ArgoCD UI на порту 7998 <<<
+    - name: Изменение сервиса ArgoCD на LoadBalancer с портом 7998 (k3s ServiceLB)
+      ansible.builtin.shell: |
+        kubectl patch service argocd-server -n argocd --type merge -p '
+        {
+          "spec": {
+            "type": "LoadBalancer",
+            "ports": [
+              {
+                "name": "http",
+                "port": 7998,
+                "targetPort": 8080,
+                "protocol": "TCP"
+              },
+              {
+                "name": "https",
+                "port": 8443,
+                "targetPort": 8080,
+                "protocol": "TCP"
+              }
+            ]
+          }
+        }'
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      run_once: true
+      register: patch_result
+      changed_when: "'service/argocd-server patched' in patch_result.stdout"
+
+    - name: Ожидание назначенияEXTERNAL-IP для сервиса ArgoCD
+      ansible.builtin.command: >
+        kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: lb_ip
+      until: lb_ip.stdout != ""
+      retries: 30
+      delay: 10
+      changed_when: false
+      run_once: true
+      ignore_errors: true
+
+    - name: Показать информацию о доступе к ArgoCD
+      ansible.builtin.debug:
+        msg: |
+          ✅ ArgoCD UI доступен:
+          🔹 Адрес: {{ 'http://' + (lb_ip.stdout | default(groups['k3s_servers'][0])) + ':7998' }}
+          🔹 Логин: admin
+          🔹 Пароль: получите командой:
+             kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+          ⚠️  Если используется фаервол, убедитесь, что порт 7998 открыт.
+      run_once: true
