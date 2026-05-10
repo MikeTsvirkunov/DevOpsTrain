@@ -97,7 +97,7 @@
       ansible.builtin.replace:
         path: /tmp/argocd-install.yaml
         regexp: '(^  - name: http\s+port: )80(\s+targetPort: 8080)'
-        replace: '\17998\2'
+        replace: '\\17998\\2'
       run_once: true
 
     - name: Применение манифеста ArgoCD
