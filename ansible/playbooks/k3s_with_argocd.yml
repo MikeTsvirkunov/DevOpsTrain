@@ -99,6 +99,14 @@
         regexp: '(^  - name: http\s+port: )80(\s+targetPort: 8080)'
         replace: '\\17998\\2'
       run_once: true
+    - name: Удаление сервиса argocd-server для чистой установки
+      ansible.builtin.command: >
+        kubectl delete service argocd-server -n argocd --ignore-not-found=true --wait=false
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      run_once: true
+      changed_when: true
+      failed_when: false
 
     - name: Применение манифеста ArgoCD
       ansible.builtin.command: kubectl apply -n argocd --server-side --force-conflicts -f /tmp/argocd-install.yaml
