@@ -67,6 +67,14 @@
   vars:
     kubeconfig: /etc/rancher/k3s/k3s.yaml
   tasks:
+    - name: Устанавливаем необходимые Python-библиотеки для k8s модуля
+      ansible.builtin.pip:
+        name:
+          - kubernetes
+          - openshift
+        executable: pip3
+        state: present
+      run_once: true
     - name: Ожидание готовности API-сервера k3s
       ansible.builtin.command: kubectl get nodes
       environment:
