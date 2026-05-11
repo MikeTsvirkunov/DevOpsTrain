@@ -119,6 +119,7 @@
       retries: 60
       delay: 10
       run_once: true
+      ignore_errors: true
 
     - name: Перевод сервиса argocd-server на LoadBalancer для External IP
       kubernetes.core.k8s:
