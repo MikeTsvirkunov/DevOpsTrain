@@ -80,6 +80,19 @@
         dest: "./k3s-remote-kubeconfig.yaml"
         flat: yes
       run_once: true
+    
+    - name: Тест получение сервисов kube-system
+      ansible.builtin.command: kubectl get svc -n kube-system --no-headers
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      delegate_to: "{{ groups['k3s_servers'][0] }}"
+      register: test_result
+      changed_when: false
+      run_once: true
+
+    - name: Показать результат
+      ansible.builtin.debug:
+        var: test_result.stdout_lines
 
 
 - name: 3. Установка ArgoCD via kubernetes.core.k8s
