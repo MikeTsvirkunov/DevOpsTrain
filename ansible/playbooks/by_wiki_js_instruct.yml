@@ -73,7 +73,7 @@
         kind: Node
         kubeconfig: "{{ kubeconfig }}"
       register: nodes_info
-      until: nodes_info.resources | length > 0
+      until: (nodes_info.resources | default([]))  | length > 0
       retries: 30
       delay: 10
       run_once: true
@@ -104,9 +104,20 @@
       register: argocd_deploy
     
     - name: Ожидание готовности подов ArgoCD Server
-      ansible.builtin.command: >
-        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
-      changed_when: false
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: argocd
+        label_selectors:
+          - app.kubernetes.io/name=argocd-server
+        kubeconfig: "{{ kubeconfig }}"
+      register: argocd_pods
+      until: >
+        (argocd_pods.resources | default([])) | 
+        selectattr('status.phase', 'equalto', 'Running') | 
+        list | length > 0 
+      retries: 60
+      delay: 10
       run_once: true
 
     - name: Перевод сервиса argocd-server на LoadBalancer для External IP
