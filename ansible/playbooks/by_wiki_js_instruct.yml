@@ -68,14 +68,15 @@
     kubeconfig: /etc/rancher/k3s/k3s.yaml
   tasks:
     - name: Ожидание готовности API-сервера k3s
-      kubernetes.core.k8s_info:
-        api_version: v1
-        kind: Node
-        kubeconfig: "{{ kubeconfig }}"
-      register: nodes_info
-      until: (nodes_info.resources | default([]))  | length > 0
+      ansible.builtin.command: kubectl get nodes
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: k3s_api_ready
+      until: k3s_api_ready.rc == 0
       retries: 30
-      delay: 10
+      delay: 180
+      timeout: 45
+      changed_when: false
       run_once: true
 
     - name: Создание namespace argocd
