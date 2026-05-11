@@ -11,7 +11,7 @@
 
     - name: Установка k3s Server
       ansible.builtin.shell: |
-        curl -sfL https://get.k3s.io | sh -
+        curl -sfL https://get.k3s.io | sh -  --resolv-conf /run/systemd/resolve/resolv.conf
       args:
         creates: /usr/local/bin/k3s
       when: not k3s_bin.stat.exists
@@ -207,3 +207,25 @@
       register: apply_result
       changed_when: "'created' in apply_result.stdout or 'configured' in apply_result.stdout"
       run_once: true
+
+
+    - name: Перезапуск CoreDNS
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: coredns
+            namespace: kube-system
+        kubeconfig: "{{ kubeconfig }}"
+      register: coredns_deploy
+    - name: Масштабирование CoreDNS до 0 и обратно для обновления
+      command: kubectl scale deployment -n kube-system coredns --replicas=0
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+    - name: Подождать удаления подов
+      pause:
+        seconds: 10
+    - name: Восстановление реплик
+      command: kubectl scale deployment -n kube-system coredns --replicas=2
