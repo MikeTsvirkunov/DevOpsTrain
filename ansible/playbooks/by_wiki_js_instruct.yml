@@ -113,7 +113,7 @@
         kubeconfig: "{{ kubeconfig }}"
       register: argocd_pods
       until: >
-        (argocd_pods.resources | default([])) | 
+        (argocd_pods.resources[0] | default([])) | 
         selectattr('status.phase', 'equalto', 'Running') | 
         list | length > 0 
       retries: 60
