@@ -112,10 +112,7 @@
           - app.kubernetes.io/name=argocd-server
         kubeconfig: "{{ kubeconfig }}"
       register: argocd_pods
-      until: >
-        argocd_pods.resources | 
-        selectattr('status.phase', 'equalto', 'Running') | 
-        list | length > 0
+      until: (nodes_info.resources | default([])) | length > 0
       retries: 60
       delay: 10
       run_once: true
