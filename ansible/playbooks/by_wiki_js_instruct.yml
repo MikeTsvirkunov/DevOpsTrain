@@ -112,7 +112,10 @@
           - app.kubernetes.io/name=argocd-server
         kubeconfig: "{{ kubeconfig }}"
       register: argocd_pods
-      until: (nodes_info.resources | default([])) | length > 0
+      until: >
+        (argocd_pods.resources | default([])) | 
+        selectattr('status.phase', 'equalto', 'Running') | 
+        list | length > 0 
       retries: 60
       delay: 10
       run_once: true
@@ -152,6 +155,8 @@
         kubeconfig: "{{ kubeconfig }}"
       register: argocd_svc
       until: >
+        argocd_svc.resources is defined and
+        argocd_svc.resources | length > 0 and
         argocd_svc.resources[0].status.loadBalancer.ingress is defined and 
         argocd_svc.resources[0].status.loadBalancer.ingress | length > 0
       retries: 30
