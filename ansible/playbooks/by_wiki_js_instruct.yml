@@ -64,13 +64,13 @@
   become: true
   vars:
     kubeconfig: /etc/rancher/k3s/k3s.yaml
-    k3s_external_ip: "{{ ansible_default_ipv4.address }}"
+    k3s_external_ip: "{{ groups['k3s_servers'][0] }}"
   tasks:
     - name: Заменить 127.0.0.1 на внешний IP в kubeconfig
       ansible.builtin.replace:
         path: "{{ kubeconfig }}"
         regexp: 'https://127\.0\.0\.1:6443'
-        replace: "https://{{ groups['k3s_servers'][0] }}:6443"
+        replace: "https://{{ k3s_external_ip }}:6443"
         backup: yes
       run_once: true
 
