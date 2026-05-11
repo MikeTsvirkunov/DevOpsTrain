@@ -106,10 +106,18 @@
         kubeconfig: "{{ kubeconfig }}"
       run_once: true
 
+    - name: Download ArgoCD manifest
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+        dest: /tmp/argocd-install.yaml
+        mode: '0440'
+      run_once: true
+      delegate_to: localhost
+
     - name: Загрузка и применение манифеста ArgoCD
       kubernetes.core.k8s:
         state: present
-        src: https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+        src: /tmp/argocd-install.yaml
         namespace: argocd
         kubeconfig: "{{ kubeconfig }}"
         apply: true
