@@ -116,6 +116,7 @@
         executable: pip3
         state: present
       run_once: true
+
     - name: Ожидание готовности API-сервера k3s
       ansible.builtin.command: kubectl get nodes
       environment:
@@ -127,6 +128,7 @@
       timeout: 45
       changed_when: false
       run_once: true
+      delegate_to: "{{ groups['k3s_servers'][0] }}"
 
     - name: Создание namespace argocd
       kubernetes.core.k8s:
@@ -140,6 +142,7 @@
               name: argocd
         kubeconfig: "{{ kubeconfig }}"
       run_once: true
+      delegate_to: "{{ groups['k3s_servers'][0] }}"
 
     - name: Применение манифеста ArgoCD
       ansible.builtin.command: kubectl apply -n argocd --server-side --force-conflicts -f /tmp/argocd-install.yaml
@@ -212,6 +215,18 @@
       delay: 10
       run_once: true
 
+    - name: Проверка системных сервисов перед созданием приложения
+      ansible.builtin.command: kubectl get svc -n kube-system --no-headers -o custom-columns=:metadata.name
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      delegate_to: "{{ groups['k3s_servers'][0] }}"
+      register: system_svcs
+      until: "'coredns' in system_svcs.stdout"
+      retries: 15
+      delay: 10
+      changed_when: false
+      run_once: true
+
     - name: Развертывание демонстрационного приложения - Создайте объект Application, который свяжет Git-репозиторий с кластером
       ansible.builtin.copy:
         dest: /tmp/guestbook-app.yaml
@@ -236,6 +251,7 @@
                 selfHeal: true
         mode: '0644'
       run_once: true
+      delegate_to: "{{ groups['k3s_servers'][0] }}"
 
     - name: Развертывание демонстрационного приложения - Применение манифеста через kubectl
       ansible.builtin.command: kubectl apply -f /tmp/guestbook-app.yaml
@@ -244,3 +260,4 @@
       register: apply_result
       changed_when: "'created' in apply_result.stdout or 'configured' in apply_result.stdout"
       run_once: true
+      delegate_to: "{{ groups['k3s_servers'][0] }}"
