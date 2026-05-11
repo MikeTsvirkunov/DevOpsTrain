@@ -11,7 +11,7 @@
 
     - name: Установка k3s Server
       ansible.builtin.shell: |
-        curl -sfL https://get.k3s.io | sh -  --resolv-conf /run/systemd/resolve/resolv.conf
+        curl -sfL https://get.k3s.io | sh -
       args:
         creates: /usr/local/bin/k3s
       when: not k3s_bin.stat.exists
@@ -113,6 +113,7 @@
       register: argocd_apply
       changed_when: "'created' in argocd_apply.stdout or 'configured' in argocd_apply.stdout"
       timeout: 120
+      delegate_to: "{{ groups['k3s_servers'][0] }}"
       run_once: true
     
     - name: Ожидание готовности подов ArgoCD Server
@@ -129,6 +130,7 @@
         selectattr('status.phase', 'equalto', 'Running') | 
         list | length > 0 
       retries: 60
+      delegate_to: "{{ groups['k3s_servers'][0] }}"
       delay: 10
       run_once: true
 
@@ -207,25 +209,3 @@
       register: apply_result
       changed_when: "'created' in apply_result.stdout or 'configured' in apply_result.stdout"
       run_once: true
-
-
-    - name: Перезапуск CoreDNS
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            name: coredns
-            namespace: kube-system
-        kubeconfig: "{{ kubeconfig }}"
-      register: coredns_deploy
-    - name: Масштабирование CoreDNS до 0 и обратно для обновления
-      command: kubectl scale deployment -n kube-system coredns --replicas=0
-      environment:
-        KUBECONFIG: "{{ kubeconfig }}"
-    - name: Подождать удаления подов
-      pause:
-        seconds: 10
-    - name: Восстановление реплик
-      command: kubectl scale deployment -n kube-system coredns --replicas=2
