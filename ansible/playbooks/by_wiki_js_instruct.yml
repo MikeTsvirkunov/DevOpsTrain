@@ -106,25 +106,14 @@
         kubeconfig: "{{ kubeconfig }}"
       run_once: true
 
-    - name: Download ArgoCD manifest
-      ansible.builtin.get_url:
-        url: https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-        dest: /tmp/argocd-install.yaml
-        mode: '0440'
+    - name: Применение манифеста ArgoCD
+      ansible.builtin.command: kubectl apply -n argocd --server-side --force-conflicts -f /tmp/argocd-install.yaml
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: argocd_apply
+      changed_when: "'created' in argocd_apply.stdout or 'configured' in argocd_apply.stdout"
+      timeout: 120
       run_once: true
-      delegate_to: localhost
-
-    - name: Загрузка и применение манифеста ArgoCD
-      kubernetes.core.k8s:
-        state: present
-        src: /tmp/argocd-install.yaml
-        namespace: argocd
-        kubeconfig: "{{ kubeconfig }}"
-        apply: true
-        server_side_apply: true
-        force: true
-      run_once: true
-      register: argocd_deploy
     
     - name: Ожидание готовности подов ArgoCD Server
       kubernetes.core.k8s_info:
