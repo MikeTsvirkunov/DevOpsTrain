@@ -251,27 +251,27 @@
       changed_when: "'created' in apply_result.stdout or 'configured' in apply_result.stdout"
       run_once: true
     
-    - name: Перевод сервиса guestbook-ui на LoadBalancer для External IP
-      kubernetes.core.k8s:
-        state: patched
-        definition:
-          apiVersion: v1
-          kind: Service
-          metadata:
-            name: guestbook-ui
-            namespace: default
-          spec:
-            type: LoadBalancer
-            ports:
-              - name: http
-                port: 7998
-                targetPort: 80
-                protocol: TCP
-            selector:
-              app: guestbook-ui
-        kubeconfig: "{{ kubeconfig }}"
-      run_once: true
-      retries: 5
-      delay: 10
-      until: result.changed or result.failed
-      register: result
+    # - name: Перевод сервиса guestbook-ui на LoadBalancer для External IP
+    #   kubernetes.core.k8s:
+    #     state: patched
+    #     definition:
+    #       apiVersion: v1
+    #       kind: Service
+    #       metadata:
+    #         name: guestbook-ui
+    #         namespace: default
+    #       spec:
+    #         type: LoadBalancer
+    #         ports:
+    #           - name: http
+    #             port: 7998
+    #             targetPort: 80
+    #             protocol: TCP
+    #         selector:
+    #           app: guestbook-ui
+    #     kubeconfig: "{{ kubeconfig }}"
+    #   run_once: true
+    #   retries: 5
+    #   delay: 10
+    #   until: result.changed or result.failed
+    #   register: result
