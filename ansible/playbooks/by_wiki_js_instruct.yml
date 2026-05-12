@@ -11,7 +11,7 @@
 
     - name: Установка k3s Server
       ansible.builtin.shell: |
-        curl -sfL https://get.k3s.io | sh - --node-external-ip {{ groups['k3s_servers'][0] }}
+        curl -sfL https://get.k3s.io | sh - --node-external-ip {{ inventory_hostname }}
       args:
         creates: /usr/local/bin/k3s
       when: not k3s_bin.stat.exists
@@ -184,8 +184,8 @@
 
     - name: Получение External IP из ноды (для NodePort)
       ansible.builtin.set_fact:
-        argocd_external_ip: "{{ hostvars[groups['k3s_servers'][0]]['ansible_host'] }}"
-        argocd_url: "http://{{ hostvars[groups['k3s_servers'][0]]['ansible_host'] }}:30080"
+        argocd_external_ip: "{{ inventory_hostname }}"
+        argocd_url: "http://{{ inventory_hostname }}:30080"
       run_once: true
 
 
