@@ -233,11 +233,6 @@
               repoURL: https://github.com/argoproj/argocd-example-apps.git
               targetRevision: HEAD
               path: guestbook
-              ports:
-                - port: 80
-                  targetPort: 80
-                  protocol: TCP
-                  name: http
             destination:
               server: https://kubernetes.default.svc
               namespace: default
