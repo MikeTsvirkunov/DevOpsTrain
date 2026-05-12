@@ -192,7 +192,7 @@
           spec:
             selector:
               k8s-app: kube-dns
-            clusterIP: 10.43.0.10  # ⚠️ Должен совпадать с тем, что в ошибке!
+            clusterIP: 10.43.0.10
             ports:
               - name: dns
                 port: 53
@@ -249,4 +249,26 @@
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
       register: apply_result
       changed_when: "'created' in apply_result.stdout or 'configured' in apply_result.stdout"
+      run_once: true
+    
+    - name: Перевод сервиса guestbook на LoadBalancer для External IP
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: guestbook-ui-server
+            namespace: argocd
+          spec:
+            type: LoadBalancer
+            ports:
+              - name: http
+                port: 80
+                targetPort: 7998
+                protocol: TCP
+            selector:
+              app.kubernetes.io/name: guestbook-ui-server
+        kubeconfig: "{{ kubeconfig }}"
+        merge_type: merge
       run_once: true
