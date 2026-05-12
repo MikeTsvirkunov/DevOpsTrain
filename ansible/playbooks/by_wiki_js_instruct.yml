@@ -85,7 +85,6 @@
       ansible.builtin.command: kubectl get svc -n kube-system --no-headers
       environment:
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-      delegate_to: "{{ groups['k3s_servers'][0] }}"
       register: test_result
       changed_when: false
       run_once: true
@@ -128,7 +127,6 @@
       timeout: 45
       changed_when: false
       run_once: true
-      delegate_to: "{{ groups['k3s_servers'][0] }}"
 
     - name: Создание namespace argocd
       kubernetes.core.k8s:
@@ -142,7 +140,6 @@
               name: argocd
         kubeconfig: "{{ kubeconfig }}"
       run_once: true
-      delegate_to: "{{ groups['k3s_servers'][0] }}"
 
     - name: Применение манифеста ArgoCD
       ansible.builtin.command: kubectl apply -n argocd --server-side --force-conflicts -f /tmp/argocd-install.yaml
@@ -151,7 +148,6 @@
       register: argocd_apply
       changed_when: "'created' in argocd_apply.stdout or 'configured' in argocd_apply.stdout"
       timeout: 120
-      delegate_to: "{{ groups['k3s_servers'][0] }}"
       run_once: true
     
     - name: Ожидание готовности подов ArgoCD Server
@@ -168,7 +164,6 @@
         selectattr('status.phase', 'equalto', 'Running') | 
         list | length > 0 
       retries: 60
-      delegate_to: "{{ groups['k3s_servers'][0] }}"
       delay: 10
       run_once: true
 
@@ -213,18 +208,6 @@
         argocd_svc.resources[0].status.loadBalancer.ingress | length > 0
       retries: 30
       delay: 10
-      run_once: true
-
-    - name: Проверка системных сервисов перед созданием приложения
-      ansible.builtin.command: kubectl get svc -n kube-system --no-headers -o custom-columns=:metadata.name
-      environment:
-        KUBECONFIG: "{{ kubeconfig }}"
-      delegate_to: "{{ groups['k3s_servers'][0] }}"
-      register: system_svcs
-      until: "'coredns' in system_svcs.stdout"
-      retries: 15
-      delay: 10
-      changed_when: false
       run_once: true
 
     - name: Развертывание демонстрационного приложения - Создайте объект Application, который свяжет Git-репозиторий с кластером
