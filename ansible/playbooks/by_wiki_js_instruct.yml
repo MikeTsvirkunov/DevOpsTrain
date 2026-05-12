@@ -286,25 +286,25 @@
         merge_type: merge
       run_once: true
 
-    - name: Получаем внешний IP сервиса
-      kubernetes.core.k8s_info:
-        api_version: v1
-        kind: Service
-        name: guestbook-ui
-        namespace: default
-        kubeconfig: "{{ kubeconfig }}"
-      register: guestbook_svc
-      until: >
-        guestbook_svc.resources[0].status.loadBalancer.ingress is defined and
-        guestbook_svc.resources[0].status.loadBalancer.ingress | length > 0
-      retries: 30
-      delay: 10
-      run_once: true
+    # - name: Получаем внешний IP сервиса
+    #   kubernetes.core.k8s_info:
+    #     api_version: v1
+    #     kind: Service
+    #     name: guestbook-ui
+    #     namespace: default
+    #     kubeconfig: "{{ kubeconfig }}"
+    #   register: guestbook_svc
+    #   until: >
+    #     guestbook_svc.resources[0].status.loadBalancer.ingress is defined and
+    #     guestbook_svc.resources[0].status.loadBalancer.ingress | length > 0
+    #   retries: 30
+    #   delay: 10
+    #   run_once: true
 
-    - name: Выводим адрес доступа
-      ansible.builtin.debug:
-        msg: "Guestbook link: http://{{ guestbook_svc.resources[0].status.loadBalancer.ingress[0].ip | default(guestbook_svc.resources[0].status.loadBalancer.ingress[0].hostname) }}"
-      run_once: true
+    # - name: Выводим адрес доступа
+    #   ansible.builtin.debug:
+    #     msg: "Guestbook link: http://{{ guestbook_svc.resources[0].status.loadBalancer.ingress[0].ip | default(guestbook_svc.resources[0].status.loadBalancer.ingress[0].hostname) }}"
+    #   run_once: true
     
     # - name: Перевод сервиса guestbook-ui на LoadBalancer для External IP
     #   kubernetes.core.k8s:
