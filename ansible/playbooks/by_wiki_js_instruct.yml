@@ -251,15 +251,15 @@
       changed_when: "'created' in apply_result.stdout or 'configured' in apply_result.stdout"
       run_once: true
     
-    - name: Перевод сервиса guestbook на LoadBalancer для External IP
+    - name: Перевод сервиса guestbook-ui на LoadBalancer для External IP
       kubernetes.core.k8s:
-        state: present
+        state: patched
         definition:
           apiVersion: v1
           kind: Service
           metadata:
-            name: guestbook-ui-server
-            namespace: argocd
+            name: guestbook-ui
+            namespace: default
           spec:
             type: LoadBalancer
             ports:
@@ -268,7 +268,10 @@
                 targetPort: 80
                 protocol: TCP
             selector:
-              app.kubernetes.io/name: guestbook-ui-server
+              app: guestbook-ui
         kubeconfig: "{{ kubeconfig }}"
-        merge_type: merge
       run_once: true
+      retries: 5
+      delay: 10
+      until: result.changed or result.failed
+      register: result
