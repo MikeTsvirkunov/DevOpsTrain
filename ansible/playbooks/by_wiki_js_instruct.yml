@@ -106,8 +106,14 @@
         kubeconfig: "{{ kubeconfig }}"
       run_once: true
 
+    - name: Download a file from a URL
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+        dest: /tmp/github-argocd-install.yaml
+        mode: '0644'
+
     - name: Применение манифеста ArgoCD
-      ansible.builtin.command: kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+      ansible.builtin.command: kubectl apply -n argocd --server-side --force-conflicts -f /tmp/github-argocd-install.yaml
       environment:
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
       register: argocd_apply
