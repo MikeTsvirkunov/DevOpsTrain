@@ -59,41 +59,6 @@
         enabled: yes
 
 
-- name: Исправить kubeconfig для удалённого доступа
-  hosts: k3s_servers
-  become: true
-  vars:
-    kubeconfig: /etc/rancher/k3s/k3s.yaml
-    k3s_external_ip: "{{ groups['k3s_servers'][0] }}"
-  tasks:
-    - name: Заменить 127.0.0.1 на внешний IP в kubeconfig
-      ansible.builtin.replace:
-        path: "{{ kubeconfig }}"
-        regexp: 'https://127\.0\.0\.1:6443'
-        replace: "https://{{ k3s_external_ip }}:6443"
-        backup: yes
-      run_once: true
-
-    - name: Скопировать исправленный kubeconfig на контроллер (опционально)
-      ansible.builtin.fetch:
-        src: "{{ kubeconfig }}"
-        dest: "./k3s-remote-kubeconfig.yaml"
-        flat: yes
-      run_once: true
-    
-    - name: Тест получение сервисов kube-system
-      ansible.builtin.command: kubectl get svc -n kube-system --no-headers
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-      register: test_result
-      changed_when: false
-      run_once: true
-
-    - name: Показать результат
-      ansible.builtin.debug:
-        var: test_result.stdout_lines
-
-
 - name: 3. Установка ArgoCD via kubernetes.core.k8s
   hosts: k3s_servers
   become: true
@@ -210,6 +175,49 @@
       delay: 10
       run_once: true
 
+
+    - name: Создание coredns манифеста, т.к. я депнул coredns
+      ansible.builtin.copy:
+        dest: /tmp/coredns.yaml
+        content: |
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: coredns
+            namespace: kube-system
+            labels:
+              k8s-app: kube-dns
+              kubernetes.io/cluster-service: "true"
+              kubernetes.io/name: "CoreDNS"
+          spec:
+            selector:
+              k8s-app: kube-dns
+            clusterIP: 10.43.0.10  # ⚠️ Должен совпадать с тем, что в ошибке!
+            ports:
+              - name: dns
+                port: 53
+                protocol: UDP
+                targetPort: 53
+              - name: dns-tcp
+                port: 53
+                protocol: TCP
+                targetPort: 53
+              - name: metrics
+                port: 9153
+                protocol: TCP
+                targetPort: 9153
+            type: ClusterIP
+        mode: '0644'
+      run_once: true
+
+    - name: Поднятие coredns, т.к. я его депнул
+      ansible.builtin.command: kubectl apply -f /tmp/coredns.yaml
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: apply_result
+      changed_when: "'created' in apply_result.stdout or 'configured' in apply_result.stdout"
+      run_once: true
+
     - name: Развертывание демонстрационного приложения - Создайте объект Application, который свяжет Git-репозиторий с кластером
       ansible.builtin.copy:
         dest: /tmp/guestbook-app.yaml
@@ -234,7 +242,6 @@
                 selfHeal: true
         mode: '0644'
       run_once: true
-      delegate_to: "{{ groups['k3s_servers'][0] }}"
 
     - name: Развертывание демонстрационного приложения - Применение манифеста через kubectl
       ansible.builtin.command: kubectl apply -f /tmp/guestbook-app.yaml
@@ -243,4 +250,3 @@
       register: apply_result
       changed_when: "'created' in apply_result.stdout or 'configured' in apply_result.stdout"
       run_once: true
-      delegate_to: "{{ groups['k3s_servers'][0] }}"
