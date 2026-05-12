@@ -189,6 +189,47 @@
       run_once: true
 
 
+    - name: Делаем сервис guestbook-ui доступным через LoadBalancer
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: guestbook-ui
+            namespace: default
+          spec:
+            type: LoadBalancer
+            ports:
+              - port: 80
+                targetPort: 80
+                protocol: TCP
+            selector:
+              app: guestbook-ui
+        kubeconfig: "{{ kubeconfig }}"
+        merge_type: merge
+      run_once: true
+
+    - name: Получаем внешний IP сервиса
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Service
+        name: guestbook-ui
+        namespace: default
+        kubeconfig: "{{ kubeconfig }}"
+      register: guestbook_svc
+      until: >
+        guestbook_svc.resources[0].status.loadBalancer.ingress is defined and
+        guestbook_svc.resources[0].status.loadBalancer.ingress | length > 0
+      retries: 30
+      delay: 10
+      run_once: true
+
+    - name: Выводим адрес доступа
+      ansible.builtin.debug:
+        msg: "Guestbook link: http://{{ guestbook_svc.resources[0].status.loadBalancer.ingress[0].ip | default(guestbook_svc.resources[0].status.loadBalancer.ingress[0].hostname) }}"
+      run_once: true
+
     # - name: Создание coredns манифеста, т.к. я депнул coredns
     #   ansible.builtin.copy:
     #     dest: /tmp/coredns.yaml
