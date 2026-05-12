@@ -142,7 +142,7 @@
       run_once: true
 
     - name: Применение манифеста ArgoCD
-      ansible.builtin.command: kubectl apply -n argocd --server-side --force-conflicts -f /tmp/argocd-install.yaml
+      ansible.builtin.command: kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
       environment:
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
       register: argocd_apply
