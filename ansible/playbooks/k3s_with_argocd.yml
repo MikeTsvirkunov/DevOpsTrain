@@ -1,0 +1,171 @@
+---
+# playbook.yml
+# Запуск: ansible-playbook -i inventory.ini playbook.yml
+
+- name: 1. Настройка k3s Server (Control Plane)
+  hosts: k3s_servers
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Проверка, установлен ли k3s
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_bin
+
+    - name: Установка k3s Server
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | sh -
+      args:
+        creates: /usr/local/bin/k3s
+      when: not k3s_bin.stat.exists
+
+    - name: Запуск и автозагрузка службы k3s
+      ansible.builtin.service:
+        name: k3s
+        state: started
+        enabled: yes
+
+    - name: Чтение токена для присоединения нод
+      ansible.builtin.command: cat /var/lib/rancher/k3s/server/node-token
+      register: k3s_token_cmd
+      changed_when: false
+      run_once: true
+
+    - name: Распространение токена в факты плейбука
+      ansible.builtin.set_fact:
+        k3s_node_token: "{{ k3s_token_cmd.stdout | trim }}"
+      run_once: true
+
+- name: 2. Настройка k3s Agents (Workers)
+  hosts: k3s_agents
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Проверка, установлен ли k3s
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_bin
+
+    - name: Установка k3s Agent
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | K3S_URL=https://{{ groups['k3s_servers'][0] }}:6443 K3S_TOKEN={{ hostvars[groups['k3s_servers'][0]]['k3s_node_token'] }} sh -
+      args:
+        creates: /usr/local/bin/k3s
+      when: not k3s_bin.stat.exists
+
+    - name: Запуск и автозагрузка службы k3s-agent
+      ansible.builtin.service:
+        name: k3s-agent
+        state: started
+        enabled: yes
+
+
+- name: 3. Установка ArgoCD в кластер
+  hosts: k3s_servers
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Ожидание готовности API-сервера k3s
+      ansible.builtin.command: kubectl get nodes
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: k3s_api_ready
+      until: k3s_api_ready.rc == 0
+      retries: 30
+      delay: 180
+      timeout: 45
+      changed_when: false
+      run_once: true
+
+    - name: Создание namespace argocd
+      ansible.builtin.command: kubectl create namespace argocd
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: ns_result
+      changed_when: "'created' in ns_result.stdout"
+      failed_when: ns_result.rc != 0 and 'AlreadyExists' not in ns_result.stderr
+      run_once: true
+
+    - name: Скачивание манифеста ArgoCD на сервер
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+        dest: /tmp/argocd-install.yaml
+        mode: '0644'
+      run_once: true
+    
+    - name: Изменение порта argocd-server на 7998 в манифесте
+      ansible.builtin.replace:
+        path: /tmp/argocd-install.yaml
+        regexp: '(^  - name: http\s+port: )80(\s+targetPort: 8080)'
+        replace: '\\17998\\2'
+      run_once: true
+    - name: Удаление сервиса argocd-server для чистой установки
+      ansible.builtin.command: >
+        kubectl delete service argocd-server -n argocd --ignore-not-found=true --wait=false
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      run_once: true
+      changed_when: true
+      failed_when: false
+
+    - name: Применение манифеста ArgoCD
+      ansible.builtin.command: kubectl apply -n argocd --server-side --force-conflicts -f /tmp/argocd-install.yaml
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: argocd_apply
+      changed_when: "'created' in argocd_apply.stdout or 'configured' in argocd_apply.stdout"
+      timeout: 120
+      run_once: true
+
+    - name: Ожидание готовности ArgoCD Server
+      ansible.builtin.command: >
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      changed_when: false
+      run_once: true
+
+    - name: Переключение сервиса ArgoCD на тип LoadBalancer (для k3s ServiceLB)
+      ansible.builtin.command: >
+        kubectl patch service argocd-server -n argocd
+        --type merge
+        -p '{"spec":{"type":"LoadBalancer"}}'
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      run_once: true
+      register: patch_type
+      changed_when: "'service/argocd-server patched' in patch_type.stdout"
+      failed_when: false
+
+    # - name: Развертывание демонстрационного приложения - Создайте объект Application, который свяжет Git-репозиторий с кластером
+    #   ansible.builtin.copy:
+    #     dest: /tmp/guestbook-app.yaml
+    #     content: |
+    #       apiVersion: argoproj.io/v1alpha1
+    #       kind: Application
+    #       metadata:
+    #         name: guestbook
+    #         namespace: argocd
+    #       spec:
+    #         project: default
+    #         source:
+    #           repoURL: https://github.com/argoproj/argocd-example-apps.git
+    #           targetRevision: HEAD
+    #           path: guestbook
+    #         destination:
+    #           server: https://kubernetes.default.svc
+    #           namespace: default
+    #         syncPolicy:
+    #           automated:
+    #             prune: true
+    #             selfHeal: true
+    #     mode: '0644'
+    #   run_once: true
+
+    # - name: Развертывание демонстрационного приложения - Применение манифеста через kubectl
+    #   ansible.builtin.command: kubectl apply -f /tmp/guestbook-app.yaml
+    #   environment:
+    #     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+    #   register: apply_result
+    #   changed_when: "'created' in apply_result.stdout or 'configured' in apply_result.stdout"
+    #   run_once: true

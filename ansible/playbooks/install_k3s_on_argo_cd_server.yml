@@ -1,0 +1,22 @@
+- name: 2. Настройка k3s Agents (Workers)
+  hosts: k3s_agents
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Проверка, установлен ли k3s
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_bin
+
+    - name: Установка k3s Agent
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | K3S_URL=https://{{ groups['k3s_servers'][0] }}:6443 K3S_TOKEN={{ hostvars[groups['k3s_servers'][0]]['k3s_node_token'] }} sh -
+      args:
+        creates: /usr/local/bin/k3s
+      when: not k3s_bin.stat.exists
+
+    - name: Запуск и автозагрузка службы k3s-agent
+      ansible.builtin.service:
+        name: k3s-agent
+        state: started
+        enabled: yes

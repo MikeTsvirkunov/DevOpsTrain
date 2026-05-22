@@ -1,0 +1,332 @@
+---
+- name: 1. Настройка k3s Server (Control Plane)
+  hosts: k3s_servers
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Проверка, установлен ли k3s
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_bin
+
+    - name: Установка k3s Server
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | sh - --node-external-ip {{ inventory_hostname }}
+      args:
+        creates: /usr/local/bin/k3s
+      when: not k3s_bin.stat.exists
+
+    - name: Запуск и автозагрузка службы k3s
+      ansible.builtin.service:
+        name: k3s
+        state: started
+        enabled: yes
+
+    - name: Чтение токена для присоединения нод
+      ansible.builtin.command: cat /var/lib/rancher/k3s/server/node-token
+      register: k3s_token_cmd
+      changed_when: false
+      run_once: true
+
+    - name: Распространение токена в факты плейбука
+      ansible.builtin.set_fact:
+        k3s_node_token: "{{ k3s_token_cmd.stdout | trim }}"
+      run_once: true
+
+
+
+- name: 2. Настройка k3s Agents (Workers)
+  hosts: k3s_agents
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Проверка, установлен ли k3s
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_bin
+
+    - name: Установка k3s Agent
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | K3S_URL=https://{{ groups['k3s_servers'][0] }}:6443 K3S_TOKEN={{ hostvars[groups['k3s_servers'][0]]['k3s_node_token'] }} sh -
+      args:
+        creates: /usr/local/bin/k3s
+      when: not k3s_bin.stat.exists
+
+    - name: Запуск и автозагрузка службы k3s-agent
+      ansible.builtin.service:
+        name: k3s-agent
+        state: started
+        enabled: yes
+
+
+- name: 3. Установка ArgoCD via kubernetes.core.k8s
+  hosts: k3s_servers
+  become: true
+  gather_facts: false
+  vars:
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+  tasks:
+    - name: Install pip for Python 3
+      ansible.builtin.apt:
+        name: python3-pip
+        update_cache: yes
+        state: present
+      become: true
+    - name: Устанавливаем необходимые Python-библиотеки для k8s модуля
+      ansible.builtin.pip:
+        name:
+          - kubernetes
+          - openshift
+        executable: pip3
+        state: present
+      run_once: true
+
+    - name: Ожидание готовности API-сервера k3s
+      ansible.builtin.command: kubectl get nodes
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: k3s_api_ready
+      until: k3s_api_ready.rc == 0
+      retries: 30
+      delay: 180
+      timeout: 45
+      changed_when: false
+      run_once: true
+
+    - name: Создание namespace argocd
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: argocd
+            labels:
+              name: argocd
+        kubeconfig: "{{ kubeconfig }}"
+      run_once: true
+
+    - name: Download a file from a URL
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+        dest: /tmp/github-argocd-install.yaml
+        mode: '0644'
+
+    - name: Применение манифеста ArgoCD
+      ansible.builtin.command: kubectl apply -n argocd --server-side --force-conflicts -f /tmp/github-argocd-install.yaml
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: argocd_apply
+      changed_when: "'created' in argocd_apply.stdout or 'configured' in argocd_apply.stdout"
+      timeout: 120
+      run_once: true
+    
+    - name: Ожидание готовности подов ArgoCD Server
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: argocd
+        label_selectors:
+          - app.kubernetes.io/name=argocd-server
+        kubeconfig: "{{ kubeconfig }}"
+      register: argocd_pods
+      until: >
+        (argocd_pods.resources | default([])) | 
+        selectattr('status.phase', 'equalto', 'Running') | 
+        list | length > 0 
+      retries: 60
+      delay: 10
+      run_once: true
+
+    - name: Перевод сервиса argocd-server на LoadBalancer/NodePort для External IP
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: argocd-server
+            namespace: argocd
+          spec:
+            type: NodePort
+            ports:
+              - name: http
+                port: 80
+                targetPort: 8080
+                nodePort: 30080
+                protocol: TCP
+              - name: https
+                port: 443
+                targetPort: 8080
+                protocol: TCP
+            selector:
+              app.kubernetes.io/name: argocd-server
+        kubeconfig: "{{ kubeconfig }}"
+        merge_type: merge
+      run_once: true
+
+    # - name: Ожидание выделения External IP для сервиса
+    #   kubernetes.core.k8s_info:
+    #     api_version: v1
+    #     kind: Service
+    #     name: argocd-server
+    #     namespace: argocd
+    #     kubeconfig: "{{ kubeconfig }}"
+    #   register: argocd_svc
+    #   until: >
+    #     argocd_svc.resources is defined and
+    #     argocd_svc.resources | length > 0 and
+    #     argocd_svc.resources[0].status.loadBalancer.ingress is defined and 
+    #     argocd_svc.resources[0].status.loadBalancer.ingress | length > 0
+    #   retries: 30
+    #   delay: 10
+    #   run_once: true
+
+    - name: Получение External IP из ноды (для NodePort)
+      ansible.builtin.set_fact:
+        argocd_external_ip: "{{ inventory_hostname }}"
+        argocd_url: "http://{{ inventory_hostname }}:30080"
+      run_once: true
+
+    # - name: Создание coredns манифеста, т.к. я депнул coredns
+    #   ansible.builtin.copy:
+    #     dest: /tmp/coredns.yaml
+    #     content: |
+    #       apiVersion: v1
+    #       kind: Service
+    #       metadata:
+    #         name: coredns
+    #         namespace: kube-system
+    #         labels:
+    #           k8s-app: kube-dns
+    #           kubernetes.io/cluster-service: "true"
+    #           kubernetes.io/name: "CoreDNS"
+    #       spec:
+    #         selector:
+    #           k8s-app: kube-dns
+    #         clusterIP: 10.43.0.10
+    #         ports:
+    #           - name: dns
+    #             port: 53
+    #             protocol: UDP
+    #             targetPort: 53
+    #           - name: dns-tcp
+    #             port: 53
+    #             protocol: TCP
+    #             targetPort: 53
+    #           - name: metrics
+    #             port: 9153
+    #             protocol: TCP
+    #             targetPort: 9153
+    #         type: ClusterIP
+    #     mode: '0644'
+    #   run_once: true
+
+    # - name: Поднятие coredns, т.к. я его депнул
+    #   ansible.builtin.command: kubectl apply -f /tmp/coredns.yaml
+    #   environment:
+    #     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+    #   register: apply_result
+    #   changed_when: "'created' in apply_result.stdout or 'configured' in apply_result.stdout"
+    #   run_once: true
+
+    - name: Развертывание демонстрационного приложения - Создайте объект Application, который свяжет Git-репозиторий с кластером
+      ansible.builtin.copy:
+        dest: /tmp/guestbook-app.yaml
+        content: |
+          apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: guestbook
+            namespace: argocd
+          spec:
+            project: default
+            source:
+              repoURL: https://github.com/argoproj/argocd-example-apps.git
+              targetRevision: HEAD
+              path: guestbook
+            destination:
+              server: https://kubernetes.default.svc
+              namespace: default
+            syncPolicy:
+              automated:
+                prune: true
+                selfHeal: true
+        mode: '0644'
+      run_once: true
+
+    - name: Развертывание демонстрационного приложения - Применение манифеста через kubectl
+      ansible.builtin.command: kubectl apply -f /tmp/guestbook-app.yaml
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: apply_result
+      changed_when: "'created' in apply_result.stdout or 'configured' in apply_result.stdout"
+      run_once: true
+
+
+    - name: Делаем сервис guestbook-ui доступным снаружи через NodePort
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: guestbook-ui
+            namespace: default
+          spec:
+            type: NodePort
+            ports:
+              - port: 80
+                targetPort: 80
+                nodePort: 30081
+                protocol: TCP
+            selector:
+              app: guestbook-ui
+        kubeconfig: "{{ kubeconfig }}"
+        merge_type: merge
+      run_once: true
+
+    # - name: Получаем внешний IP сервиса
+    #   kubernetes.core.k8s_info:
+    #     api_version: v1
+    #     kind: Service
+    #     name: guestbook-ui
+    #     namespace: default
+    #     kubeconfig: "{{ kubeconfig }}"
+    #   register: guestbook_svc
+    #   until: >
+    #     guestbook_svc.resources[0].status.loadBalancer.ingress is defined and
+    #     guestbook_svc.resources[0].status.loadBalancer.ingress | length > 0
+    #   retries: 30
+    #   delay: 10
+    #   run_once: true
+
+    # - name: Выводим адрес доступа
+    #   ansible.builtin.debug:
+    #     msg: "Guestbook link: http://{{ guestbook_svc.resources[0].status.loadBalancer.ingress[0].ip | default(guestbook_svc.resources[0].status.loadBalancer.ingress[0].hostname) }}"
+    #   run_once: true
+    
+    # - name: Перевод сервиса guestbook-ui на LoadBalancer для External IP
+    #   kubernetes.core.k8s:
+    #     state: patched
+    #     definition:
+    #       apiVersion: v1
+    #       kind: Service
+    #       metadata:
+    #         name: guestbook-ui
+    #         namespace: default
+    #       spec:
+    #         type: LoadBalancer
+    #         ports:
+    #           - name: http
+    #             port: 7998
+    #             targetPort: 80
+    #             protocol: TCP
+    #         selector:
+    #           app: guestbook-ui
+    #     kubeconfig: "{{ kubeconfig }}"
+    #   run_once: true
+    #   retries: 5
+    #   delay: 10
+    #   until: result.changed or result.failed
+    #   register: result

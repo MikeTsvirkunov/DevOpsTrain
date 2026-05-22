@@ -1,0 +1,23 @@
+- name: 3. Установка ArgoCD в кластер
+  hosts: k3s_servers
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Создание namespace argocd
+      ansible.builtin.command: kubectl create namespace argocd
+      register: ns_result
+      changed_when: "'created' in ns_result.stdout"
+      failed_when: ns_result.rc != 0 and 'AlreadyExists' not in ns_result.stderr
+      run_once: true
+
+    - name: Применение официального манифеста ArgoCD
+      ansible.builtin.command: kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+      register: argocd_apply
+      changed_when: "'created' in argocd_apply.stdout or 'configured' in argocd_apply.stdout"
+      run_once: true
+
+    - name: Ожидание готовности ArgoCD Server
+      ansible.builtin.command: >
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
+      changed_when: false
+      run_once: true
