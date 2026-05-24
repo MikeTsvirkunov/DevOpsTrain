@@ -13,6 +13,11 @@ resource "twc_server" "main-server" {
     cpu = 2
     ram = 1024 * 4
   }
+  
+  local_network {
+    id = twc_vpc.main-vpc.id
+    ip = "192.168.0.15"
+  }
   # lifecycle {
   #   replace_triggered_by = [terraform_data.always_replace.id]
   # }
@@ -45,7 +50,10 @@ resource "twc_server" "argocd-node-server" {
   project_id = data.twc_projects.mmm-project.id
   ssh_keys_ids = [twc_ssh_key.argocd-node-server-ssh-key.id]
   # is_root_password_required = false
-
+  local_network {
+    id = twc_vpc.main-vpc.id
+    ip = "192.168.0.16"
+  }
   # lifecycle {
   #   replace_triggered_by = [terraform_data.always_replace.id]
   # }
