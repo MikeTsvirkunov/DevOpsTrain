@@ -89,16 +89,9 @@ jobs:
           ansible_become_method=sudo
           ansible_ssh_common_args='-o StrictHostKeyChecking=no -o ControlMaster=no -o ControlPath=none'
           
-          [defaults]
-          display_traceback = always
           EOF
       - name: Run k3s w ACD
-        run: ansible-playbook -i inventory.ini ansible/playbooks/by_wiki_js_instruct.yml
-          # ansible-playbook -i inventory.ini ansible/playbooks/install_k3s_on_main_server.yml
-          # ansible-playbook -i inventory.ini ansible/playbooks/install_k3s_on_argo_cd_server.yml
-          # ansible-playbook -i inventory.ini ansible/playbooks/install_argo_cd_in_k3s.yml
-      # - name: Run install_k3s_on_argo_cd_server.yml
-      #   run: ansible-playbook -i inventory.ini ansible/playbooks/install_k3s_on_argo_cd_server.yml
-      # - name: Run install_argo_cd_in_k3s.yml
-      #   run: ansible-playbook -i inventory.ini ansible/playbooks/install_argo_cd_in_k3s.yml
+        env:
+          ANSIBLE_CONFIG: ansible/configs/ansible.cfg
+        run: ansible-playbook ansible/playbooks/by_wiki_js_instruct.yml
       
