@@ -67,6 +67,7 @@ jobs:
           mkdir -p ~/.ssh
           echo "needs.opentofu_run.outputs.main_ip"
           echo ${{ needs.opentofu_run.outputs.main_ip }}
+          nc -zv -w 3 ${{ needs.opentofu_run.outputs.main_ip }} 22 || echo "PORT 22 UNREACHABLE"
           echo "ssh-keyscan for main_ip"
           ssh-keyscan -T 20 ${{ needs.opentofu_run.outputs.main_ip }}
           ssh-keyscan -T 20 ${{ needs.opentofu_run.outputs.main_ip }} >> ~/.ssh/known_hosts
