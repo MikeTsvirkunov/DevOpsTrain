@@ -65,8 +65,6 @@ jobs:
       - name: Add server keys to known_hosts
         run: |
           mkdir -p ~/.ssh
-          echo "needs.opentofu_run.outputs.main_ip"
-          echo ${{ needs.opentofu_run.outputs.main_ip }}
           nc -zv -w 3 ${{ needs.opentofu_run.outputs.main_ip }} 22 || echo "PORT 22 UNREACHABLE"
           MAIN_IP=$(echo "${{ needs.opentofu_run.outputs.main_ip }}" | tr -d '[:space:]')
           WORKER_IP=$(echo "${{ needs.opentofu_run.outputs.worker_ip }}" | tr -d '[:space:]')
@@ -78,6 +76,7 @@ jobs:
             fi
             sleep 4
           done
+          nc -zv -w 3 ${{ needs.opentofu_run.outputs.worker_ip }} 22 || echo "PORT 22 UNREACHABLE"
           for i in $(seq 1 15); do
             if ssh-keyscan -H -T 5 -t ed25519,rsa "$WORKER_IP" >> ~/.ssh/known_hosts 2>/dev/null; then
               echo "✅ Worker IP keys added."
