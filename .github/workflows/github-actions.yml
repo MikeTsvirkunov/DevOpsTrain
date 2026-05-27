@@ -68,11 +68,23 @@ jobs:
           echo "needs.opentofu_run.outputs.main_ip"
           echo ${{ needs.opentofu_run.outputs.main_ip }}
           nc -zv -w 3 ${{ needs.opentofu_run.outputs.main_ip }} 22 || echo "PORT 22 UNREACHABLE"
-          echo "ssh-keyscan for main_ip"
-          ssh-keyscan -T 20 ${{ needs.opentofu_run.outputs.main_ip }}
-          ssh-keyscan -T 20 ${{ needs.opentofu_run.outputs.main_ip }} >> ~/.ssh/known_hosts
-          ssh-keyscan -T 20 ${{ needs.opentofu_run.outputs.worker_ip }} >> ~/.ssh/known_hosts
-
+          MAIN_IP=$(echo "${{ needs.opentofu_run.outputs.main_ip }}" | tr -d '[:space:]')
+          WORKER_IP=$(echo "${{ needs.opentofu_run.outputs.worker_ip }}" | tr -d '[:space:]')
+          for i in $(seq 1 15); do
+            echo "⏳ Attempt $i: checking SSH key exchange..."
+            if ssh-keyscan -H -T 5 -t ed25519,rsa "$MAIN_IP" >> ~/.ssh/known_hosts 2>/dev/null; then
+              echo "✅ Main IP keys added."
+              break
+            fi
+            sleep 4
+          done
+          for i in $(seq 1 15); do
+            if ssh-keyscan -H -T 5 -t ed25519,rsa "$WORKER_IP" >> ~/.ssh/known_hosts 2>/dev/null; then
+              echo "✅ Worker IP keys added."
+              break
+            fi
+            sleep 4
+          done
       - name: Create Ansible inventory
         run: |
           cat > inventory.ini << EOF
