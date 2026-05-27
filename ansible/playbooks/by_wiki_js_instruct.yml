@@ -11,7 +11,7 @@
 
     - name: Установка k3s Server
       ansible.builtin.shell: |
-        curl -sfL https://get.k3s.io | sh - --node-external-ip {{ inventory_hostname }}
+        curl -sfL https://get.k3s.io | sh -s - --node-external-ip {{ inventory_hostname }}
       args:
         creates: /usr/local/bin/k3s
       when: not k3s_bin.stat.exists
