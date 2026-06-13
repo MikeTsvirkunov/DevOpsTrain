@@ -108,4 +108,5 @@ jobs:
         env:
           ANSIBLE_CONFIG: ansible/configs/ansible.cfg
         run: ansible-playbook ansible/playbooks/by_wiki_js_instruct.yml
+    
       

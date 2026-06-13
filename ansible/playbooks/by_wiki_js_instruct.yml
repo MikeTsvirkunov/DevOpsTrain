@@ -165,22 +165,6 @@
         merge_type: merge
       run_once: true
 
-    # - name: Ожидание выделения External IP для сервиса
-    #   kubernetes.core.k8s_info:
-    #     api_version: v1
-    #     kind: Service
-    #     name: argocd-server
-    #     namespace: argocd
-    #     kubeconfig: "{{ kubeconfig }}"
-    #   register: argocd_svc
-    #   until: >
-    #     argocd_svc.resources is defined and
-    #     argocd_svc.resources | length > 0 and
-    #     argocd_svc.resources[0].status.loadBalancer.ingress is defined and 
-    #     argocd_svc.resources[0].status.loadBalancer.ingress | length > 0
-    #   retries: 30
-    #   delay: 10
-    #   run_once: true
 
     - name: Получение External IP из ноды (для NodePort)
       ansible.builtin.set_fact:
@@ -188,48 +172,7 @@
         argocd_url: "http://{{ inventory_hostname }}:30080"
       run_once: true
 
-    # - name: Создание coredns манифеста, т.к. я депнул coredns
-    #   ansible.builtin.copy:
-    #     dest: /tmp/coredns.yaml
-    #     content: |
-    #       apiVersion: v1
-    #       kind: Service
-    #       metadata:
-    #         name: coredns
-    #         namespace: kube-system
-    #         labels:
-    #           k8s-app: kube-dns
-    #           kubernetes.io/cluster-service: "true"
-    #           kubernetes.io/name: "CoreDNS"
-    #       spec:
-    #         selector:
-    #           k8s-app: kube-dns
-    #         clusterIP: 10.43.0.10
-    #         ports:
-    #           - name: dns
-    #             port: 53
-    #             protocol: UDP
-    #             targetPort: 53
-    #           - name: dns-tcp
-    #             port: 53
-    #             protocol: TCP
-    #             targetPort: 53
-    #           - name: metrics
-    #             port: 9153
-    #             protocol: TCP
-    #             targetPort: 9153
-    #         type: ClusterIP
-    #     mode: '0644'
-    #   run_once: true
-
-    # - name: Поднятие coredns, т.к. я его депнул
-    #   ansible.builtin.command: kubectl apply -f /tmp/coredns.yaml
-    #   environment:
-    #     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-    #   register: apply_result
-    #   changed_when: "'created' in apply_result.stdout or 'configured' in apply_result.stdout"
-    #   run_once: true
-
+ 
     - name: Развертывание демонстрационного приложения - Создайте объект Application, который свяжет Git-репозиторий с кластером
       ansible.builtin.copy:
         dest: /tmp/guestbook-app.yaml
@@ -286,47 +229,54 @@
         merge_type: merge
       run_once: true
 
-    # - name: Получаем внешний IP сервиса
-    #   kubernetes.core.k8s_info:
-    #     api_version: v1
-    #     kind: Service
-    #     name: guestbook-ui
-    #     namespace: default
-    #     kubeconfig: "{{ kubeconfig }}"
-    #   register: guestbook_svc
-    #   until: >
-    #     guestbook_svc.resources[0].status.loadBalancer.ingress is defined and
-    #     guestbook_svc.resources[0].status.loadBalancer.ingress | length > 0
-    #   retries: 30
-    #   delay: 10
-    #   run_once: true
 
-    # - name: Выводим адрес доступа
-    #   ansible.builtin.debug:
-    #     msg: "Guestbook link: http://{{ guestbook_svc.resources[0].status.loadBalancer.ingress[0].ip | default(guestbook_svc.resources[0].status.loadBalancer.ingress[0].hostname) }}"
-    #   run_once: true
-    
-    # - name: Перевод сервиса guestbook-ui на LoadBalancer для External IP
-    #   kubernetes.core.k8s:
-    #     state: patched
-    #     definition:
-    #       apiVersion: v1
-    #       kind: Service
-    #       metadata:
-    #         name: guestbook-ui
-    #         namespace: default
-    #       spec:
-    #         type: LoadBalancer
-    #         ports:
-    #           - name: http
-    #             port: 7998
-    #             targetPort: 80
-    #             protocol: TCP
-    #         selector:
-    #           app: guestbook-ui
-    #     kubeconfig: "{{ kubeconfig }}"
-    #   run_once: true
-    #   retries: 5
-    #   delay: 10
-    #   until: result.changed or result.failed
-    #   register: result
+- name: 4. Установка ClearML via Helm
+  hosts: k3s_servers
+  become: true
+  gather_facts: false
+  vars:
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+  tasks:
+    - name: Установка Helm 3
+      ansible.builtin.shell: |
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      args:
+        creates: /usr/local/bin/helm
+      run_once: true
+
+    - name: Добавление Helm-репозитория ClearML
+      ansible.builtin.command: helm repo add clearml https://clearml.github.io/clearml-helm-charts --force-update
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: helm_repo_add
+      changed_when: "'has been added' in helm_repo_add.stdout"
+      run_once: true
+
+    - name: Обновление Helm-репозиториев
+      ansible.builtin.command: helm repo update
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      run_once: true
+
+    - name: Развертывание ClearML через Helm
+      ansible.builtin.command: >
+        helm upgrade --install clearml clearml/clearml 
+        --namespace clearml --create-namespace 
+        --set apiserver.service.nodePort=30008 
+        --set fileserver.service.nodePort=30082 
+        --set webserver.service.nodePort=30083
+        --wait --timeout 15m
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: helm_install
+      changed_when: "'STATUS: deployed' in helm_install.stdout"
+      timeout: 1000
+      run_once: true
+
+    - name: Вывод URL-адресов ClearML
+      ansible.builtin.debug:
+        msg:
+          - "ClearML Web Server UI: http://{{ inventory_hostname }}:30083"
+          - "ClearML API Server: http://{{ inventory_hostname }}:30008"
+          - "ClearML File Server: http://{{ inventory_hostname }}:30082"
+      run_once: true
