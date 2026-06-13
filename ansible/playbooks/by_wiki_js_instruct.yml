@@ -93,7 +93,7 @@
       until: k3s_api_ready.rc == 0
       retries: 30
       delay: 180
-      timeout: 45
+      timeout: 200
       changed_when: false
       run_once: true
 
