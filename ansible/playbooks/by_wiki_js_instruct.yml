@@ -44,6 +44,7 @@
       ansible.builtin.stat:
         path: /usr/local/bin/k3s
       register: k3s_bin
+      run_once: true
 
     - name: Установка k3s Agent
       ansible.builtin.shell: |
@@ -51,12 +52,14 @@
       args:
         creates: /usr/local/bin/k3s
       when: not k3s_bin.stat.exists
+      run_once: true
 
     - name: Запуск и автозагрузка службы k3s-agent
       ansible.builtin.service:
         name: k3s-agent
         state: started
         enabled: yes
+      run_once: true
 
 
 - name: 3. Установка ArgoCD via kubernetes.core.k8s
@@ -72,6 +75,7 @@
         update_cache: yes
         state: present
       become: true
+      run_once: true
     - name: Устанавливаем необходимые Python-библиотеки для k8s модуля
       ansible.builtin.pip:
         name:
@@ -111,6 +115,7 @@
         url: https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
         dest: /tmp/github-argocd-install.yaml
         mode: '0644'
+      run_once: true
 
     - name: Применение манифеста ArgoCD
       ansible.builtin.command: kubectl apply -n argocd --server-side --force-conflicts -f /tmp/github-argocd-install.yaml
